@@ -1,0 +1,5 @@
+{
+  "name": "PropertySim",
+  "description": "A professional-grade property portfolio simulator. Manage trusts, acquire assets, release equity, and track your net worth over time in a turn-based economy.",
+  "requestFramePermissions": []
+}
