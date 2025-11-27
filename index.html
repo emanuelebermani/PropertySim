@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -55,7 +56,7 @@
         Plus, Briefcase, TrendingUp, DollarSign, Clock, Building, 
         PieChart, Home, Store, Wallet, Coins, BarChart2, 
         ArrowDownCircle, Building2, Landmark, Percent, X, 
-        HelpCircle, AlertTriangle 
+        HelpCircle, AlertTriangle, ChevronRight
       } from 'https://esm.sh/lucide-react@0.292.0?deps=react@18.2.0';
       import { 
         LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -106,11 +107,14 @@
 
       const calculateLMI = (loanAmount, value) => {
         const lvr = loanAmount / value;
-        // Simple rule: If LVR > 80%, LMI is roughly 1.5% of the total loan amount
-        if (lvr > 0.80) {
-          return loanAmount * 0.015;
-        }
-        return 0;
+        
+        if (lvr <= 0.80) return 0;
+        if (lvr <= 0.85) return loanAmount * 0.011; // 1.1%
+        if (lvr <= 0.90) return loanAmount * 0.020; // 2.0%
+        if (lvr <= 0.95) return loanAmount * 0.035; // 3.5%
+        
+        // Return -1 to indicate too risky/invalid
+        return -1;
       };
 
       // --- COMPONENTS ---
@@ -119,25 +123,46 @@
       const AppLogo = ({ size = "large" }) => {
         const isLarge = size === "large";
         return (
-          <div className={`${isLarge ? "w-24 h-24" : "w-10 h-10"} relative`}>
-            <svg 
+          <div className={`${isLarge ? "w-20 h-20" : "w-8 h-8"} relative transition-all duration-300`}>
+             <svg 
               viewBox="0 0 100 100" 
-              className={`w-full h-full drop-shadow-md`}
-              fill="none" 
+              className="w-full h-full drop-shadow-md" 
               xmlns="http://www.w3.org/2000/svg"
             >
-              {/* House Background */}
-              <path d="M10 50 L50 15 L90 50 V90 H10 Z" fill="#2563EB" stroke="white" strokeWidth="4" strokeLinejoin="round"/>
+              {/* House Base */}
+              <path d="M50 10 L10 45 V90 H90 V45 L50 10 Z" fill="#2563eb" stroke="white" strokeWidth="4" strokeLinejoin="round" />
               
-              {/* Dollar Sign */}
-              <text x="50" y="75" fontSize="45" fontWeight="bold" textAnchor="middle" fill="white" fontFamily="sans-serif">$</text>
-              
-              {/* Growth Arrow */}
-              <path d="M65 75 L85 55 M85 55 H70 M85 55 V70" stroke="#4ade80" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+              {/* Upward Arrow Inside House */}
+              <path d="M35 65 L50 40 L65 65 H55 V80 H45 V65 H35 Z" fill="white" />
             </svg>
           </div>
         );
       };
+
+      // Slider Input Helper Component
+      const SliderInput = ({ label, value, min, max, step, onChange, unit = "%", color = "blue" }) => {
+        return (
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-sm font-medium text-slate-700">{label}</label>
+              <div className={`text-sm font-bold text-${color}-600 bg-${color}-50 px-2 py-0.5 rounded border border-${color}-100 min-w-[3rem] text-center`}>
+                {value}{unit}
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+               <input 
+                type="range" 
+                min={min} 
+                max={max} 
+                step={step} 
+                value={value} 
+                onChange={(e) => onChange(Number(e.target.value))}
+                className={`w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-${color}-600`}
+              />
+            </div>
+          </div>
+        )
+      }
 
       // 1. StatCard
       const StatCard = ({ label, value, subValue, icon, color = 'slate' }) => {
@@ -213,24 +238,14 @@
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
-                    <Percent className="w-4 h-4" /> Savings Rate
-                  </label>
-                  <p className="text-xs text-slate-400 mb-2">% of salary added to cash annually.</p>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-500">%</span>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      max="100"
-                      value={savingsRate}
-                      onChange={(e) => setSavingsRate(Number(e.target.value))}
-                      className="w-full pl-8 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                    />
-                  </div>
-                </div>
+                <SliderInput 
+                  label="Savings Rate (of Annual Salary)" 
+                  value={savingsRate} 
+                  min={0} 
+                  max={100} 
+                  step={1} 
+                  onChange={setSavingsRate} 
+                />
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
@@ -299,7 +314,7 @@
         const [lvr, setLvr] = useState(88); 
         const [rate, setRate] = useState(6.0);
         const [growth, setGrowth] = useState(20.0);
-        const [yieldRate, setYieldRate] = useState(5.0);
+        const [yieldRate, setYieldRate] = useState(3.0);
         const [otherCosts, setOtherCosts] = useState(40000);
 
         useEffect(() => {
@@ -314,10 +329,12 @@
             setPrice(1000000);
             setLvr(65);
             setGrowth(4.0);
+            setYieldRate(6.0);
           } else {
             setPrice(500000);
             setLvr(88);
             setGrowth(20.0);
+            setYieldRate(3.0);
           }
         };
 
@@ -325,7 +342,7 @@
             const num = parseFormattedNumber(value);
             if(!isNaN(num)) setter(num);
         }
-        
+
         const handlePercentChange = (value, setter) => {
             if (value === '') {
                 setter('');
@@ -334,13 +351,20 @@
             }
         }
 
-        const loanAmount = price * (lvr / 100);
-        const depositRequired = price - loanAmount;
+        // Calculations based on LVR
+        const baseLoanAmount = price * (lvr / 100);
+        
+        // Tiered LMI Logic
+        const lmiAmount = calculateLMI(baseLoanAmount, price);
+        const isRisky = lmiAmount === -1;
+        const totalLoanAmount = isRisky ? 0 : baseLoanAmount + lmiAmount;
+
+        const depositRequired = price - baseLoanAmount;
         const totalUpfront = depositRequired + otherCosts;
         
         const selectedTrust = trusts.find((t) => t.id === trustId);
         const currentTrustDebt = selectedTrust?.properties.reduce((acc, p) => acc + p.loan, 0) || 0;
-        const newTrustDebt = currentTrustDebt + loanAmount;
+        const newTrustDebt = currentTrustDebt + totalLoanAmount;
         const isOverBorrowing = newTrustDebt > maxBorrowingPerTrust;
         const isAffordable = totalUpfront <= cash;
 
@@ -348,13 +372,13 @@
           <Modal title="Acquire Asset" onClose={onClose}>
             <form onSubmit={(e) => {
               e.preventDefault();
-              if (!isOverBorrowing && isAffordable) {
+              if (!isOverBorrowing && isAffordable && !isRisky) {
                 onBuy(trustId, { 
                   name, 
                   type, 
                   value: price, 
                   originalPrice: price,
-                  loan: loanAmount, 
+                  loan: totalLoanAmount, // Include LMI in loan
                   interestRate: Number(rate), 
                   growthRate: Number(growth), 
                   yieldRate: Number(yieldRate) 
@@ -394,51 +418,110 @@
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                <div>
-                  <label className="block text-sm font-medium text-blue-900 mb-1">LVR</label>
-                  <div className="relative">
-                    <input 
-                      type="number" 
-                      min="0" 
-                      max="100" 
-                      value={lvr} 
-                      onChange={(e) => setLvr(Number(e.target.value))} 
-                      className="w-full border p-2 rounded-lg text-center font-bold text-blue-800 pr-6" 
-                    />
-                    <span className="absolute right-3 top-2 text-blue-600 font-bold">%</span>
+              {/* LVR Slider - Updated with Quick Buttons */}
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                  <div className="flex justify-between items-end mb-2">
+                     <label className="block text-sm font-medium text-blue-900">Purchase LVR</label>
+                     <div className="flex gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => setLvr(80)}
+                            className="text-xs bg-white border border-blue-200 text-blue-700 px-2 py-1 rounded hover:bg-blue-100 transition"
+                          >
+                            Set 80%
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => setLvr(88)}
+                            className="text-xs bg-white border border-purple-200 text-purple-700 px-2 py-1 rounded hover:bg-purple-100 transition"
+                          >
+                            Set 88%
+                          </button>
+                      </div>
                   </div>
-                  <p className="text-xs text-blue-600 mt-1 text-center">Loan: {formatCurrency(loanAmount)}</p>
-                </div>
-                <div>
-                   <label className="block text-sm font-medium text-blue-900 mb-1">Required Deposit</label>
-                   <div className="w-full border p-2 rounded-lg bg-white text-slate-500 text-center">
-                      {formatCurrency(depositRequired)}
-                   </div>
-                </div>
+                  <div className="flex items-center gap-3 mb-2">
+                      <span className="text-lg font-bold text-blue-700 min-w-[3rem] text-right">{lvr}%</span>
+                      <input 
+                          type="range" 
+                          min="0" 
+                          max="100" 
+                          value={lvr} 
+                          onChange={(e) => setLvr(Number(e.target.value))}
+                          className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      />
+                  </div>
+                  <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-blue-600">
+                        <span>Base Loan:</span>
+                        <span>{formatCurrency(baseLoanAmount)}</span>
+                      </div>
+                      
+                      {isRisky ? (
+                         <div className="flex justify-between text-xs text-red-600 font-bold bg-red-100 px-2 py-1 rounded">
+                            <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Risk Warning:</span>
+                            <span>LVR &gt; 95% (Too Risky)</span>
+                         </div>
+                      ) : (
+                         lmiAmount > 0 ? (
+                            <div className="flex justify-between text-xs text-orange-600 font-medium">
+                              <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> + LMI:</span>
+                              <span>{formatCurrency(lmiAmount)}</span>
+                            </div>
+                         ) : (
+                            <div className="flex justify-between text-xs text-emerald-600 font-medium">
+                               <span className="flex items-center gap-1">No LMI Required</span>
+                               <span>$0</span>
+                            </div>
+                         )
+                      )}
+
+                      <div className="flex justify-between text-sm font-bold text-blue-800 border-t border-blue-200 pt-1 mt-1">
+                          <span>Total Debt:</span>
+                          <span>{isRisky ? '---' : formatCurrency(totalLoanAmount)}</span>
+                      </div>
+                  </div>
               </div>
 
+              {/* Other Percentages - Reverted to Inputs */}
               <div className="grid grid-cols-3 gap-4">
-                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Loan Interest Rate</label>
-                  <div className="relative">
-                      <input type="number" step="0.1" value={rate} onChange={(e) => handlePercentChange(e.target.value, setRate)} className="w-full border p-2 pr-6 rounded-lg" />
-                      <span className="absolute right-3 top-2 text-slate-500">%</span>
-                  </div>
+                <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Interest rate</label>
+                   <div className="relative">
+                       <input 
+                         type="number" 
+                         step="0.1" 
+                         value={rate} 
+                         onChange={(e) => handlePercentChange(e.target.value, setRate)} 
+                         className="w-full border p-2 pr-6 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" 
+                       />
+                       <span className="absolute right-2 top-2 text-slate-400 font-medium">%</span>
+                   </div>
                 </div>
-                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1 leading-tight">Annual growth</label>
-                  <div className="relative">
-                      <input type="number" step="0.1" value={growth} onChange={(e) => handlePercentChange(e.target.value, setGrowth)} className="w-full border p-2 pr-6 rounded-lg" />
-                      <span className="absolute right-3 top-2 text-slate-500">%</span>
-                  </div>
+                <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Annual growth</label>
+                   <div className="relative">
+                       <input 
+                         type="number" 
+                         step="0.1" 
+                         value={growth} 
+                         onChange={(e) => handlePercentChange(e.target.value, setGrowth)} 
+                         className="w-full border p-2 pr-6 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" 
+                       />
+                       <span className="absolute right-2 top-2 text-slate-400 font-medium">%</span>
+                   </div>
                 </div>
-                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Yield</label>
-                  <div className="relative">
-                      <input type="number" step="0.1" value={yieldRate} onChange={(e) => handlePercentChange(e.target.value, setYieldRate)} className="w-full border p-2 pr-6 rounded-lg" />
-                      <span className="absolute right-3 top-2 text-slate-500">%</span>
-                  </div>
+                <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Net Yield</label>
+                   <div className="relative">
+                       <input 
+                         type="number" 
+                         step="0.1" 
+                         value={yieldRate} 
+                         onChange={(e) => handlePercentChange(e.target.value, setYieldRate)} 
+                         className="w-full border p-2 pr-6 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" 
+                       />
+                       <span className="absolute right-2 top-2 text-slate-400 font-medium">%</span>
+                   </div>
                 </div>
               </div>
 
@@ -467,11 +550,11 @@
               </div>
 
               <button 
-                  disabled={!isAffordable || isOverBorrowing || !name} 
+                  disabled={!isAffordable || isOverBorrowing || !name || isRisky} 
                   type="submit" 
                   className="w-full bg-blue-600 disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
-                  Complete Purchase
+                  {isRisky ? "Loan Too Risky (>95% LVR)" : "Complete Purchase"}
               </button>
             </form>
           </Modal>
@@ -684,14 +767,16 @@
 
           const newTotalLoanRaw = property.loan + amountToRelease;
           const lmiCost = calculateLMI(newTotalLoanRaw, property.value);
-          const finalNewLoan = newTotalLoanRaw + lmiCost;
+          const isRisky = lmiCost === -1;
+          
+          const finalNewLoan = isRisky ? newTotalLoanRaw : newTotalLoanRaw + lmiCost;
           const finalLVR = (finalNewLoan / property.value) * 100;
 
           return (
               <Modal title="Release Equity" onClose={onClose}>
                   <form onSubmit={(e) => {
                       e.preventDefault();
-                      if (amountToRelease > 0 && amountToRelease <= maxReleaseable) {
+                      if (amountToRelease > 0 && amountToRelease <= maxReleaseable && !isRisky) {
                           onRefinance(trust.id, property.id, amountToRelease, lmiCost);
                       }
                   }} className="space-y-6">
@@ -718,27 +803,29 @@
                           </div>
                       </div>
 
-                      <div>
-                          <div className="flex justify-between items-end mb-1">
-                              <label className="block text-sm font-medium text-slate-700">Amount to Release</label>
+                      {/* Equity Release Slider - Blue Box Style */}
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                          <div className="flex justify-between items-end mb-2">
+                              <label className="block text-sm font-medium text-blue-900">Amount to Release</label>
                               <div className="flex gap-2">
                                    <button 
                                       type="button"
                                       onClick={() => setAmountByLVR(80)}
-                                      className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition"
+                                      className="text-xs bg-white border border-blue-200 text-blue-700 px-2 py-1 rounded hover:bg-blue-100 transition"
                                    >
                                       Max 80%
                                    </button>
                                    <button 
                                       type="button"
                                       onClick={() => setAmountByLVR(88)}
-                                      className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 transition"
+                                      className="text-xs bg-white border border-purple-200 text-purple-700 px-2 py-1 rounded hover:bg-purple-100 transition"
                                    >
                                       Max 88%
                                    </button>
                               </div>
                           </div>
-                          <div className="relative">
+                          
+                          <div className="relative mb-2">
                               <span className="absolute left-3 top-2.5 text-slate-500">$</span>
                               <input 
                                   type="text" 
@@ -747,49 +834,61 @@
                                       const val = parseFormattedNumber(e.target.value);
                                       if (!isNaN(val) && val <= maxReleaseable) setAmountToRelease(val);
                                   }}
-                                  className="w-full pl-8 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                  className="w-full pl-8 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-800"
                               />
                           </div>
+                          
                           <input 
                               type="range" 
                               min="0" 
                               max={maxReleaseable} 
                               value={amountToRelease} 
                               onChange={(e) => setAmountToRelease(Number(e.target.value))}
-                              className="w-full mt-2 accent-blue-600"
+                              className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600 mb-2"
                           />
                           
-                          <div className="flex justify-between text-xs text-slate-500 mt-1">
+                          <div className="flex justify-between text-xs text-slate-500">
                               <span>$0</span>
-                              <span>{formatCurrency(maxReleaseable)}</span>
+                              <span>Max: {formatCurrency(maxReleaseable)}</span>
                           </div>
 
                           {amountToRelease > 0 && (
-                               <div className="mt-4 p-3 bg-slate-50 rounded-lg text-sm border border-slate-200 space-y-1">
-                                  {lmiCost > 0 && (
-                                      <div className="flex justify-between text-orange-600 items-center">
-                                          <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> LMI Added (1.5%):</span>
+                               <div className="mt-3 pt-3 border-t border-blue-200 space-y-1">
+                                  {isRisky ? (
+                                      <div className="flex justify-between text-xs text-red-600 font-bold bg-red-100 px-2 py-1 rounded">
+                                          <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Risk Warning:</span>
+                                          <span>LVR &gt; 95% (Too Risky)</span>
+                                      </div>
+                                  ) : lmiCost > 0 ? (
+                                      <div className="flex justify-between text-orange-600 font-medium text-xs">
+                                          <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> + LMI Added:</span>
                                           <span>{formatCurrency(lmiCost)}</span>
                                       </div>
+                                  ) : (
+                                      <div className="flex justify-between text-emerald-600 font-medium text-xs">
+                                          <span>No LMI Required</span>
+                                          <span>$0</span>
+                                      </div>
                                   )}
-                                  <div className="flex justify-between">
+                                  
+                                  <div className="flex justify-between text-sm">
                                       <span>New Loan Amount:</span>
                                       <span>{formatCurrency(finalNewLoan)}</span>
                                   </div>
-                                  <div className="flex justify-between font-bold">
+                                  <div className="flex justify-between font-bold text-blue-900 text-sm">
                                       <span>New LVR:</span>
-                                      <span className={finalLVR > 80 ? 'text-orange-600' : 'text-slate-800'}>{finalLVR.toFixed(2)}%</span>
+                                      <span className={finalLVR > 80 ? 'text-orange-600' : 'text-blue-900'}>{finalLVR.toFixed(2)}%</span>
                                   </div>
                                </div>
                           )}
                       </div>
 
                       <button 
-                          disabled={amountToRelease <= 0 || amountToRelease > maxReleaseable} 
+                          disabled={amountToRelease <= 0 || amountToRelease > maxReleaseable || isRisky} 
                           type="submit" 
                           className="w-full bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-emerald-700 text-white font-bold py-3 rounded-lg transition shadow hover:shadow-lg"
                       >
-                          Confirm & Cash Out {formatCurrency(amountToRelease)}
+                          {isRisky ? "Loan Too Risky" : `Confirm & Cash Out ${formatCurrency(amountToRelease)}`}
                       </button>
                   </form>
               </Modal>
@@ -1016,59 +1115,98 @@
         const progressPercentage = Math.min((currentProgress / timelineMaxYear) * 100, 100);
         const timelineTicks = Array.from({ length: timelineMaxYear + 1 }, (_, i) => i);
 
+        // Header Timeline & Chart Buttons for reuse
+        const TimelineWidget = ({ compact = false }) => (
+            <div className={`flex flex-col min-w-[80px] md:min-w-[100px] ${compact ? 'items-end' : ''}`}>
+               <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
+                  {!compact && <Clock className="w-3 h-3" />} Timeline
+               </span>
+               <span className={`font-bold text-slate-800 flex items-baseline gap-1 ${compact ? 'text-sm' : 'text-xl'}`}>
+                  Y{gameState.year} <span className="text-xs md:text-sm text-slate-400 font-medium">M{gameState.month}</span>
+               </span>
+            </div>
+        );
+
+        const ChartButton = ({ compact = false }) => (
+            <button 
+               onClick={() => setShowHistory(!showHistory)} 
+               className={`p-2 rounded-lg transition border flex items-center gap-2 text-sm font-medium ${showHistory ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            >
+               <BarChart2 className={compact ? "w-4 h-4" : "w-5 h-5"} />
+               <span className={compact ? "hidden" : "hidden md:inline"}>Chart</span>
+            </button>
+        );
+
         return (
           <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-20">
-            {/* Top Bar */}
+            {/* Top Bar - Sticky */}
             <div className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm px-4 py-3 lg:px-8">
-              <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex items-center gap-4">
-                  <AppLogo size="small" />
-                  <div className="flex flex-col md:flex-row md:items-center gap-4">
-                    <h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-800">PropertySim</h1>
-                  </div>
-                </div>
+              <div className="max-w-7xl mx-auto flex flex-col gap-3">
                 
-                <div className="flex gap-4 lg:gap-8 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-center">
-                   <div className="flex flex-col min-w-[100px] border-r border-slate-100 pr-6 mr-2">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1"><Clock className="w-3 h-3" /> Timeline</span>
-                      <span className="text-xl font-bold text-slate-800 flex items-baseline gap-1">
-                         Y{gameState.year} <span className="text-sm text-slate-400 font-medium">M{gameState.month}</span>
-                      </span>
-                   </div>
+                {/* Row 1: Logo & Top Controls */}
+                <div className="flex justify-between items-center w-full">
+                    {/* Left: Logo + Title + (Desktop Stats) */}
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-blue-600 p-2 rounded-lg text-white shadow-md">
+                               <Building className="w-5 h-5" />
+                            </div>
+                            <h1 className="text-lg md:text-2xl font-bold tracking-tight text-slate-800">PropertySim</h1>
+                        </div>
 
-                   <div className="flex flex-col min-w-[100px]">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Net Worth</span>
-                      <span className="text-xl font-bold text-slate-800">{formatCurrency(netWorth)}</span>
-                   </div>
-                   <div className="flex flex-col min-w-[100px]">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Cash</span>
-                      <span className="text-xl font-bold text-emerald-600">{formatCurrency(gameState.cash)}</span>
-                   </div>
-                   <div className="flex flex-col min-w-[100px]">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold">Annual Cashflow</span>
-                      <span className={`text-xl font-bold ${annualCashflow >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                        {annualCashflow > 0 ? '+' : ''}{formatCurrency(annualCashflow)}
-                      </span>
-                   </div>
-                   
-                   <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+                        {/* Desktop Stats (Visible only on lg+) */}
+                        <div className="hidden lg:flex items-center gap-6 border-l border-slate-200 pl-6 ml-2">
+                             <div className="flex flex-col">
+                                <span className="text-[10px] text-slate-500 uppercase font-bold">Net Worth</span>
+                                <span className="text-xl font-bold text-slate-800">{formatCurrency(netWorth)}</span>
+                             </div>
+                             <div className="flex flex-col">
+                                <span className="text-[10px] text-slate-500 uppercase font-bold">Cash</span>
+                                <span className="text-xl font-bold text-emerald-600">{formatCurrency(gameState.cash)}</span>
+                             </div>
+                             <div className="flex flex-col">
+                                <span className="text-[10px] text-slate-500 uppercase font-bold">Annual Cashflow</span>
+                                <span className={`text-xl font-bold ${annualCashflow >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                  {annualCashflow > 0 ? '+' : ''}{formatCurrency(annualCashflow)}
+                                </span>
+                             </div>
+                        </div>
+                    </div>
 
-                   <div className="flex items-center gap-2">
-                      <button 
-                          onClick={() => setShowHistory(!showHistory)} 
-                          className={`p-2.5 rounded-lg transition border flex items-center gap-2 text-sm font-medium ${showHistory ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                      >
-                          <BarChart2 className="w-5 h-5" />
-                          <span className="hidden md:inline">Chart</span>
-                      </button>
-                      <button 
-                      onClick={advanceTime} 
-                      className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                      >
-                          <Clock className="w-4 h-4" /> Fast forward
-                      </button>
-                  </div>
+                    {/* Right: Timeline & Chart */}
+                    <div className="flex items-center gap-3 md:gap-6">
+                        {/* Mobile: Show compact timeline & icon button */}
+                        <div className="flex md:hidden items-center gap-3">
+                            <TimelineWidget compact />
+                            <ChartButton compact />
+                        </div>
+                        
+                        {/* Desktop: Show full timeline & button */}
+                        <div className="hidden md:flex items-center gap-6 border-l border-slate-200 pl-6">
+                             <TimelineWidget />
+                             <ChartButton />
+                        </div>
+                    </div>
                 </div>
+
+                {/* Row 2: Scrollable Stats (Mobile/Tablet only - hidden on lg) */}
+                <div className="lg:hidden flex gap-4 overflow-x-auto pb-2 items-center border-t border-slate-50 pt-2 md:border-t-0 md:pt-0">
+                     <div className="flex flex-col min-w-[100px]">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">Net Worth</span>
+                        <span className="text-xl font-bold text-slate-800">{formatCurrency(netWorth)}</span>
+                     </div>
+                     <div className="flex flex-col min-w-[100px]">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">Cash</span>
+                        <span className="text-xl font-bold text-emerald-600">{formatCurrency(gameState.cash)}</span>
+                     </div>
+                     <div className="flex flex-col min-w-[100px]">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">Annual Cashflow</span>
+                        <span className={`text-xl font-bold ${annualCashflow >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                          {annualCashflow > 0 ? '+' : ''}{formatCurrency(annualCashflow)}
+                        </span>
+                     </div>
+                </div>
+
               </div>
             </div>
 
@@ -1342,6 +1480,16 @@
 
             </div>
 
+            {/* Floating Action Button */}
+            <div className="fixed bottom-6 right-6 z-40">
+                <button 
+                    onClick={advanceTime}
+                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 font-bold text-sm md:text-lg"
+                >
+                    Next quarter <ChevronRight className="w-4 h-4 md:w-6 md:h-6" />
+                </button>
+            </div>
+
             {showBuyModal && (
               <BuyPropertyModal 
                 trusts={gameState.trusts} 
@@ -1395,3 +1543,4 @@
     </script>
   </body>
 </html>
+    
