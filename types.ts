@@ -1,4 +1,4 @@
-export type PropertyType = 'RESIDENTIAL' | 'COMMERCIAL';
+export type PropertyType = 'RESIDENTIAL_GROWTH' | 'RESIDENTIAL_CASHFLOW' | 'COMMERCIAL';
 
 export interface Property {
   id: string;
@@ -9,13 +9,14 @@ export interface Property {
   loan: number;
   interestRate: number; // Annual %
   growthRate: number; // Annual %
-  yieldRate: number; // Annual %
+  yieldRate: number; // Annual % (Gross for Res, Net for Comm)
   boughtAt: number; // Month purchased
 }
 
 export interface Trust {
   id: string;
   name: string;
+  maxBorrowing: number;
   properties: Property[];
 }
 
