@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertySim: Portfolio Manager</title>
@@ -18,45 +18,616 @@
     <!-- Fonts -->
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-      body {
-        font-family: 'Inter', sans-serif;
-      }
-      /* Custom scrollbar for better aesthetics */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #f1f5f9; 
-      }
-      .dark ::-webkit-scrollbar-track {
-        background: #0f172a;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1; 
-        border-radius: 4px;
-      }
-      .dark ::-webkit-scrollbar-thumb {
-        background: #334155;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8; 
-      }
+      body { font-family: 'Inter', sans-serif; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: #f1f5f9; }
+      .dark ::-webkit-scrollbar-track { background: #0f172a; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+      .dark ::-webkit-scrollbar-thumb { background: #334155; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
-  <script type="importmap">
+
+    <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.5.0"
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.263.1",
+    "recharts": "https://esm.sh/recharts@2.7.2",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
   }
 }
 </script>
 </head>
-  <body>
+<body>
     <div id="root"></div>
-    <script type="text/babel" data-type="module" src="./index.tsx"></script>
-  </body>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useMemo, useEffect } from 'react';
+        import ReactDOM from 'react-dom/client';
+        import { 
+            Plus, Briefcase, TrendingUp, DollarSign, Clock, Building, PieChart, 
+            Home, Store, Wallet, Coins, BarChart2, ArrowDownCircle, Settings, 
+            BookOpen, Moon, Sun, ChevronRight, X, HelpCircle, AlertTriangle, 
+            Building2, Landmark, Percent 
+        } from 'lucide-react';
+        import { 
+            LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
+            ResponsiveContainer, Legend 
+        } from 'recharts';
+
+        // --- TYPES CONSTANTS ---
+        const INITIAL_GAME_STATE = {
+            year: 0,
+            month: 0,
+            cash: 0,
+            salary: 0,
+            savingsRate: 0,
+            maxBorrowingPerTrust: 0,
+            trusts: [],
+            history: [],
+            setupComplete: false,
+        };
+
+        // --- UTILS ---
+        const formatCurrency = (amount) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
+        const formatNumber = (amount) => new Intl.NumberFormat('en-US').format(amount);
+        const parseFormattedNumber = (value) => Number(value.replace(/,/g, ''));
+        const formatPercentage = (rate) => `${rate.toFixed(2)}%`;
+        const calculateMonthlyInterest = (loan, rate) => (loan * (rate / 100)) / 12;
+        const getMaxLoan = (value) => value * 0.88;
+        const calculateLMI = (loanAmount, value) => {
+            const lvr = loanAmount / value;
+            if (lvr > 0.80) return loanAmount * 0.015;
+            return 0;
+        };
+
+        // --- COMPONENTS ---
+        const StatCard = ({ label, value, subValue, icon, color = 'slate' }) => {
+            const colorClasses = {
+                slate: 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700',
+                blue: 'bg-blue-50 dark:bg-blue-900/30 border-blue-100 dark:border-blue-800',
+                green: 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-100 dark:border-emerald-800',
+                red: 'bg-rose-50 dark:bg-rose-900/30 border-rose-100 dark:border-rose-800',
+            };
+            return (
+                <div className={`p-4 rounded-xl border shadow-sm ${colorClasses[color]} flex flex-col justify-between h-full transition-colors duration-300`}>
+                <div className="flex justify-between items-start mb-2"><span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</span>{icon && <div className="text-slate-400 dark:text-slate-500">{icon}</div>}</div>
+                <div><div className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-white">{value}</div>{subValue && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{subValue}</div>}</div>
+                </div>
+            );
+        };
+
+        const AppLogo = ({ size = "large" }) => {
+            const isLarge = size === "large";
+            return (
+                <div className={`${isLarge ? "w-20 h-20" : "w-8 h-8"} relative transition-all duration-300`}>
+                <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M50 10 L10 45 V90 H90 V45 L50 10 Z" fill="#2563eb" stroke="white" strokeWidth="4" strokeLinejoin="round" />
+                    <path d="M35 65 L50 40 L65 65 H55 V80 H45 V65 H35 Z" fill="white" />
+                </svg>
+                </div>
+            );
+        };
+
+        const InstructionsModal = ({ onClose }) => (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800 relative">
+                <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-6 h-6" /></button>
+                <div className="flex items-center gap-3 mb-4"><div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg"><BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" /></div><h2 className="text-2xl font-bold text-slate-800 dark:text-white">How to Play</h2></div>
+                <div className="space-y-6 text-sm text-slate-600 dark:text-slate-300">
+                        <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg border border-blue-100 dark:border-blue-900/50"><h4 className="font-bold text-blue-900 dark:text-blue-200 mb-1 flex items-center gap-2"><TrendingUp className="w-4 h-4" /> The Goal</h4><p>Build a massive property portfolio. Increase your <strong>Net Worth</strong> (Assets - Debt) and generate positive <strong>Cashflow</strong> to replace your salary.</p></div>
+                        <div className="space-y-4">
+                            <div><h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Building className="w-4 h-4"/> 1. Trusts & Structure</h5><p>You cannot buy properties in your personal name. You must open <strong>Trusts</strong>. Each Trust has a borrowing capacity limit. When a Trust is full, open a new one.</p></div>
+                            <div><h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Home className="w-4 h-4"/> 2. Buying Assets</h5><ul className="list-disc pl-5 space-y-1"><li><strong>Residential Growth:</strong> High capital growth (value goes up), lower yield. Good for building equity.</li><li><strong>Residential Cashflow:</strong> Higher yield, moderate growth. Good for servicing debt.</li><li><strong>Commercial:</strong> High yield, lower growth. Excellent for boosting cashflow.</li></ul></div>
+                            <div><h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Coins className="w-4 h-4"/> 3. The Power of Equity</h5><p>As properties grow in value, you gain <strong>Equity</strong>. Use "Equity Release" to refinance and turn that paper growth into usable Cash without selling the asset.</p></div>
+                            <div><h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Clock className="w-4 h-4"/> 4. Time & Money</h5><p>Click <strong>Next Quarter</strong> to advance time by 3 months. Your tenant pays rent, the bank takes interest, and your salary savings are added to your Cash balance.</p></div>
+                        </div>
+                </div>
+                <button onClick={onClose} className="w-full mt-6 bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition">Let's Start</button>
+                </div>
+            </div>
+        );
+
+        const SetupScreen = ({ onStart, darkMode, onToggleTheme }) => {
+            const [salary, setSalary] = useState(150000);
+            const [savingsRate, setSavingsRate] = useState(20);
+            const [cash, setCash] = useState(200000);
+            const [maxBorrowing, setMaxBorrowing] = useState(1000000);
+            const [showGuide, setShowGuide] = useState(false);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onStart({ salary, savingsRate, cash, maxBorrowingPerTrust: maxBorrowing, history: [{ label: 'Start', netWorth: cash, cash: cash, debt: 0 }] });
+            };
+
+            const SliderInput = ({ label, value, min, max, step, onChange, unit = "%", color = "blue" }) => (
+                <div className="mb-4">
+                    <div className="flex justify-between items-center mb-1"><label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label><div className={`text-sm font-bold text-${color}-600 bg-${color}-50 dark:bg-${color}-900/30 dark:text-${color}-400 px-2 py-0.5 rounded border border-${color}-100 dark:border-${color}-800 min-w-[3rem] text-center`}>{value}{unit}</div></div>
+                    <div className="flex items-center gap-4"><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className={`w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-${color}-600`} /></div>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 p-4 relative transition-colors duration-300">
+                <div className="absolute top-4 right-4 md:top-8 md:right-8 z-10 flex gap-2">
+                    <button onClick={onToggleTheme} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition">{darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}</button>
+                    <button onClick={() => setShowGuide(true)} className="flex items-center gap-2 bg-white dark:bg-slate-800 px-4 py-2 rounded-full shadow-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition"><BookOpen className="w-4 h-4" /> How to Play</button>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-xl w-full max-w-md border-t-4 border-blue-600 relative">
+                    <div className="mb-6 text-center flex flex-col items-center"><div className="mb-4 transform hover:scale-105 transition duration-300"><AppLogo size="large" /></div><h1 className="text-2xl font-bold text-slate-800 dark:text-white">PropertySim</h1><p className="text-slate-500 dark:text-slate-400 mt-2">Configure your portfolio parameters</p></div>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-2"><Wallet className="w-4 h-4" /> Annual Salary</label><div className="relative"><span className="absolute left-3 top-2.5 text-slate-500">$</span><input type="text" required value={formatNumber(salary)} onChange={(e) => { const n = parseFormattedNumber(e.target.value); if(!isNaN(n)) setSalary(n); }} className="w-full pl-8 pr-4 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" /></div></div>
+                    <SliderInput label="Savings Rate (of Annual Salary)" value={savingsRate} min={0} max={100} step={1} onChange={setSavingsRate} />
+                    <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-2"><Landmark className="w-4 h-4" /> Initial Cash Savings</label><div className="relative"><span className="absolute left-3 top-2.5 text-slate-500">$</span><input type="text" required value={formatNumber(cash)} onChange={(e) => { const n = parseFormattedNumber(e.target.value); if(!isNaN(n)) setCash(n); }} className="w-full pl-8 pr-4 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" /></div></div>
+                    <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-2"><Building2 className="w-4 h-4" /> Max Borrowing per Trust</label><div className="relative"><span className="absolute left-3 top-2.5 text-slate-500">$</span><input type="text" required value={formatNumber(maxBorrowing)} onChange={(e) => { const n = parseFormattedNumber(e.target.value); if(!isNaN(n)) setMaxBorrowing(n); }} className="w-full pl-8 pr-4 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" /></div></div>
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg shadow-md transition duration-200 transform hover:scale-[1.02]">Start Portfolio</button>
+                    </form>
+                </div>
+                {showGuide && <InstructionsModal onClose={() => setShowGuide(false)} />}
+                </div>
+            );
+        };
+
+        const Modal = ({ title, onClose, children }) => (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
+                <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 sticky top-0 z-10">
+                    <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{title}</h3>
+                    <button onClick={onClose} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition"><X className="w-5 h-5 text-slate-500 dark:text-slate-400" /></button>
+                </div>
+                <div className="p-6">{children}</div>
+                </div>
+            </div>
+        );
+
+        const BuyPropertyModal = ({ trusts, cash, initialTrustId, onClose, onBuy }) => {
+             const [trustId, setTrustId] = useState(initialTrustId || trusts[0]?.id || '');
+             const [name, setName] = useState('');
+             const [type, setType] = useState('RESIDENTIAL_GROWTH');
+             const [price, setPrice] = useState(500000);
+             const [lvr, setLvr] = useState(88);
+             const [rate, setRate] = useState(6.0);
+             const [growth, setGrowth] = useState(20.0);
+             const [yieldRate, setYieldRate] = useState(5.0);
+             const [otherCosts, setOtherCosts] = useState(40000);
+
+            useEffect(() => {
+                const allProps = trusts.flatMap(t => t.properties);
+                const count = allProps.filter(p => p.type === type).length + 1;
+                if (type === 'RESIDENTIAL_GROWTH') setName(`Res Growth ${count}`);
+                else if (type === 'RESIDENTIAL_CASHFLOW') setName(`Res Cashflow ${count}`);
+                else setName(`Commercial ${count}`);
+            }, [type, trusts]);
+
+             const handleTypeChange = (newType) => {
+                setType(newType);
+                if (newType === 'COMMERCIAL') { setPrice(1000000); setLvr(65); setGrowth(4.0); setYieldRate(6.0); } 
+                else if (newType === 'RESIDENTIAL_CASHFLOW') { setPrice(1000000); setLvr(88); setGrowth(10.0); setRate(6.0); setYieldRate(7.0); } 
+                else { setPrice(500000); setLvr(88); setGrowth(20.0); setYieldRate(5.0); }
+            };
+            
+            const handleCurrencyChange = (val, setter) => { const n = parseFormattedNumber(val); if(!isNaN(n)) setter(n); };
+            const handlePercentChange = (val, setter) => { if(val === '') setter(''); else setter(Number(val)); };
+
+            const loanAmount = price * (lvr / 100);
+            const lmiAmount = calculateLMI(loanAmount, price);
+            const isRisky = lmiAmount === -1;
+            const totalLoanAmount = isRisky ? 0 : loanAmount + lmiAmount;
+            const depositRequired = price - loanAmount;
+            const totalUpfront = depositRequired + otherCosts;
+            const selectedTrust = trusts.find((t) => t.id === trustId);
+            const currentTrustDebt = selectedTrust?.properties.reduce((acc, p) => acc + p.loan, 0) || 0;
+            const newTrustDebt = currentTrustDebt + totalLoanAmount;
+            const isOverBorrowing = selectedTrust ? newTrustDebt > selectedTrust.maxBorrowing : true;
+            const isAffordable = totalUpfront <= cash;
+            const isResidential = type === 'RESIDENTIAL_GROWTH' || type === 'RESIDENTIAL_CASHFLOW';
+
+            return (
+                <Modal title="Acquire Asset" onClose={onClose}>
+                    <form onSubmit={(e) => { e.preventDefault(); if (!isOverBorrowing && isAffordable && !isRisky) { onBuy(trustId, { name, type, value: price, originalPrice: price, loan: totalLoanAmount, interestRate: Number(rate), growthRate: Number(growth), yieldRate: Number(yieldRate) }, totalUpfront); }}} className="space-y-4">
+                        <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Select Trust</label><select value={trustId} onChange={(e) => setTrustId(e.target.value)} className="w-full border dark:border-slate-700 p-2 rounded-lg bg-slate-50 dark:bg-slate-800 dark:text-white">{trusts.map((t) => <option key={t.id} value={t.id}>{t.name} (Cap: {formatCurrency(t.maxBorrowing)})</option>)}</select>{isOverBorrowing && <p className="text-xs text-red-500 mt-1">Exceeds Trust Borrowing Capacity of {formatCurrency(selectedTrust?.maxBorrowing || 0)}</p>}</div>
+                        <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Property Name</label><input required type="text" placeholder="e.g. 123 Main St" value={name} onChange={(e) => setName(e.target.value)} className="w-full border dark:border-slate-700 p-2 rounded-lg bg-white dark:bg-slate-800 dark:text-white" /></div><div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label><select value={type} onChange={(e) => handleTypeChange(e.target.value)} className="w-full border dark:border-slate-700 p-2 rounded-lg bg-white dark:bg-slate-800 dark:text-white"><option value="RESIDENTIAL_GROWTH">Residential Growth</option><option value="RESIDENTIAL_CASHFLOW">Residential Cashflow</option><option value="COMMERCIAL">Commercial</option></select></div></div>
+                        <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Purchase Price</label><div className="relative"><span className="absolute left-3 top-2 text-slate-500">$</span><input type="text" value={formatNumber(price)} onChange={(e) => handleCurrencyChange(e.target.value, setPrice)} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white pl-6 p-2 rounded-lg" /></div></div>
+                        <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg border border-blue-100 dark:border-blue-900/50">
+                            <div className="flex justify-between items-end mb-2"><label className="block text-sm font-medium text-blue-900 dark:text-blue-200">Purchase LVR</label><div className="flex gap-2"><button type="button" onClick={() => setLvr(80)} className="text-xs bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 px-2 py-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition">Set 80%</button><button type="button" onClick={() => setLvr(88)} className="text-xs bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 px-2 py-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900/50 transition">Set 88%</button></div></div>
+                            <div className="flex items-center gap-3 mb-2"><span className="text-lg font-bold text-blue-700 dark:text-blue-300 min-w-[3rem] text-right">{lvr}%</span><input type="range" min="0" max="100" value={lvr} onChange={(e) => setLvr(Number(e.target.value))} className="w-full h-2 bg-blue-200 dark:bg-blue-900 rounded-lg appearance-none cursor-pointer accent-blue-600" /></div>
+                            <div className="space-y-1"><div className="flex justify-between text-xs text-blue-600 dark:text-blue-300"><span>Base Loan:</span><span>{formatCurrency(loanAmount)}</span></div>{isRisky ? <div className="flex justify-between text-xs text-red-600 dark:text-red-400 font-bold bg-red-100 dark:bg-red-950/50 px-2 py-1 rounded"><span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Risk Warning:</span><span>LVR &gt; 95%</span></div> : lmiAmount > 0 ? <div className="flex justify-between text-xs text-orange-600 dark:text-orange-400 font-medium"><span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> + LMI:</span><span>{formatCurrency(lmiAmount)}</span></div> : <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400 font-medium"><span className="flex items-center gap-1">No LMI</span><span>$0</span></div>}<div className="flex justify-between text-sm font-bold text-blue-800 dark:text-blue-200 border-t border-blue-200 dark:border-blue-800 pt-1 mt-1"><span>Total Debt:</span><span>{isRisky ? '---' : formatCurrency(totalLoanAmount)}</span></div></div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4"><div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Interest Rate</label><div className="relative"><input type="number" step="0.1" value={rate} onChange={(e) => handlePercentChange(e.target.value, setRate)} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white p-2 pr-6 rounded-lg" /><span className="absolute right-3 top-2 text-slate-500">%</span></div></div><div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 leading-tight">Annual Growth</label><div className="relative"><input type="number" step="0.1" value={growth} onChange={(e) => handlePercentChange(e.target.value, setGrowth)} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white p-2 pr-6 rounded-lg" /><span className="absolute right-3 top-2 text-slate-500">%</span></div></div><div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{isResidential ? 'Gross Yield' : 'Net Yield'}</label><div className="relative"><input type="number" step="0.1" value={yieldRate} onChange={(e) => handlePercentChange(e.target.value, setYieldRate)} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white p-2 pr-6 rounded-lg" /><span className="absolute right-3 top-2 text-slate-500">%</span></div>{isResidential && typeof yieldRate === 'number' && (<p className="text-[10px] text-slate-400 mt-1">Net: {(yieldRate - 2).toFixed(2)}%</p>)}</div></div>
+                        <div><div className="flex items-center gap-2 mb-1"><label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Other Costs</label><div className="group relative"><HelpCircle className="w-4 h-4 text-slate-400 cursor-help" /><div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-800 text-white text-xs p-2 rounded hidden group-hover:block z-20">Includes Stamp Duty, Legal Fees, and Buyer's Agency Fees.</div></div></div><div className="relative"><span className="absolute left-3 top-2 text-slate-500">$</span><input type="text" value={formatNumber(otherCosts)} onChange={(e) => handleCurrencyChange(e.target.value, setOtherCosts)} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white pl-6 p-2 rounded-lg" /></div></div>
+                        <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-lg text-sm space-y-2 border border-slate-200 dark:border-slate-700 dark:text-slate-300"><div className="flex justify-between"><span>Deposit ({(100-lvr).toFixed(0)}%):</span> <span>{formatCurrency(depositRequired)}</span></div><div className="flex justify-between"><span>Other Costs:</span> <span>{formatCurrency(otherCosts)}</span></div><div className="h-px bg-slate-300 dark:bg-slate-600 my-1"></div><div className="flex justify-between font-bold text-lg"><span>Total Cash Required:</span> <span className={isAffordable ? 'text-slate-800 dark:text-white' : 'text-red-600 dark:text-red-400'}>{formatCurrency(totalUpfront)}</span></div>{!isAffordable && <div className="text-red-500 text-xs text-right font-medium">Insufficient Cash</div>}</div>
+                        <button disabled={!isAffordable || isOverBorrowing || !name || isRisky} type="submit" className="w-full bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">{isRisky ? "Loan Too Risky (>95% LVR)" : "Complete Purchase"}</button>
+                    </form>
+                </Modal>
+            );
+        };
+
+        const SellPropertyModal = ({ property, trustId, currentDate, onClose, onSell }) => {
+            const currentMonthTotal = currentDate.year * 12 + currentDate.month;
+            const monthsHeld = currentMonthTotal - property.boughtAt;
+            const [cgtRate, setCgtRate] = useState(30);
+            const [applyDiscount, setApplyDiscount] = useState(monthsHeld >= 12);
+            const sellingCosts = property.value * 0.02;
+            const loanPayout = property.loan;
+            const capitalGain = property.value - sellingCosts - property.originalPrice;
+            const taxableAmount = applyDiscount && capitalGain > 0 ? capitalGain * 0.5 : capitalGain;
+            const taxPayable = taxableAmount > 0 ? taxableAmount * (cgtRate / 100) : 0;
+            const netProceeds = property.value - loanPayout - sellingCosts - taxPayable;
+            const handlePercentChange = (val, setter) => { if (val === '') setter(''); else setter(Number(val)); }
+            return (
+                <Modal title="Sell Property & Tax" onClose={onClose}>
+                    <div className="space-y-6">
+                        <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700"><h4 className="font-bold text-slate-800 dark:text-white text-lg mb-1">{property.name}</h4><p className="text-slate-500 dark:text-slate-400 text-sm">Held for {Math.floor(monthsHeld / 12)} Years, {monthsHeld % 12} Months</p></div>
+                        <div className="space-y-3 text-sm dark:text-slate-300">
+                            <div className="flex justify-between items-center py-1"><span className="text-slate-600 dark:text-slate-400">Sale Price</span><span className="font-semibold text-slate-800 dark:text-white">{formatCurrency(property.value)}</span></div>
+                            <div className="flex justify-between items-center py-1 text-slate-400"><span>Original Purchase Price</span><span>-{formatCurrency(property.originalPrice)}</span></div>
+                            <div className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-700 pb-2"><span>Selling Costs (2%)</span><span className="text-red-500">-{formatCurrency(sellingCosts)}</span></div>
+                            <div className="flex justify-between items-center py-1 font-medium text-slate-700 dark:text-slate-300"><span>Gross Capital Gain</span><span>{formatCurrency(Math.max(0, capitalGain))}</span></div>
+                            <div className="bg-orange-50 dark:bg-orange-950/30 p-3 rounded-lg border border-orange-100 dark:border-orange-900/50 space-y-3 mt-2">
+                                <div className="flex justify-between items-center"><label className="text-orange-900 dark:text-orange-200 font-medium text-sm">Est. Tax Rate (%)</label><div className="relative w-24"><input type="number" value={cgtRate} onChange={(e) => handlePercentChange(e.target.value, setCgtRate)} className="w-full border border-orange-200 dark:border-orange-800 rounded p-1 text-right pr-6 focus:ring-orange-500 bg-white dark:bg-slate-800 dark:text-white" /><span className="absolute right-2 top-1 text-orange-400 text-sm">%</span></div></div>
+                                <div className="flex items-center gap-2"><input type="checkbox" checked={applyDiscount} onChange={(e) => setApplyDiscount(e.target.checked)} className="rounded text-orange-600 focus:ring-orange-500 dark:bg-slate-800" /><label className="text-sm text-orange-800 dark:text-orange-200">Apply 50% CGT Discount (Held &gt; 12m)</label></div>
+                                <div className="flex justify-between items-center pt-2 border-t border-orange-200 dark:border-orange-800 font-medium text-orange-800 dark:text-orange-200"><span>Tax Payable to ATO</span><span>{formatCurrency(taxPayable)}</span></div>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-t border-slate-200 dark:border-slate-700"><span className="text-slate-600 dark:text-slate-400">Less: Loan Discharge</span><span className="text-red-600 dark:text-red-400">-{formatCurrency(loanPayout)}</span></div>
+                            <div className="flex justify-between items-center pt-2 text-lg bg-emerald-50 dark:bg-emerald-950/30 p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/50 mt-2"><span className="font-bold text-emerald-900 dark:text-emerald-200">Net Cash to Bank</span><span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(netProceeds)}</span></div>
+                        </div>
+                        <div className="flex gap-3 mt-6"><button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition font-medium">Cancel</button><button onClick={() => onSell(trustId, property.id, netProceeds)} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-bold shadow-md">Confirm Sale</button></div>
+                    </div>
+                </Modal>
+            )
+        };
+
+        const PayDownModal = ({ property, trustId, cashAvailable, onClose, onPayDown }) => {
+            const [amount, setAmount] = useState('');
+            const maxPayable = Math.min(cashAvailable, property.loan);
+            const numAmount = Number(amount);
+            return (
+                <Modal title="Pay Down Loan" onClose={onClose}>
+                    <div className="space-y-5">
+                        <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg border border-blue-100 dark:border-blue-900/50 text-sm text-blue-800 dark:text-blue-200">Paying down debt reduces your interest expenses and increases cashflow, but consumes available cash.</div>
+                        <div className="grid grid-cols-2 gap-4 text-sm"><div className="p-2 border dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-800"><span className="block text-slate-500 dark:text-slate-400 text-xs uppercase">Current Loan</span><span className="font-bold text-slate-800 dark:text-white">{formatCurrency(property.loan)}</span></div><div className="p-2 border dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-800"><span className="block text-slate-500 dark:text-slate-400 text-xs uppercase">Cash Available</span><span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(cashAvailable)}</span></div></div>
+                        <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Payment Amount</label><div className="relative"><span className="absolute left-3 top-2.5 text-slate-500">$</span><input type="text" value={amount === '' ? '' : formatNumber(numAmount)} onChange={(e) => { const val = parseFormattedNumber(e.target.value); if (!isNaN(val) && val <= maxPayable) setAmount(val); if (e.target.value === '') setAmount(''); }} className="w-full border dark:border-slate-700 pl-8 p-2 rounded-lg bg-white dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0" /></div><div className="flex justify-end gap-2 mt-1"><button onClick={() => setAmount(maxPayable)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Max Available</button></div></div>
+                        <button disabled={numAmount <= 0} onClick={() => onPayDown(trustId, property.id, numAmount)} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed hover:bg-blue-700 transition">Pay {numAmount > 0 ? formatCurrency(numAmount) : ''} & Reduce Debt</button>
+                    </div>
+                </Modal>
+            )
+        };
+
+        const RefinanceModal = ({ properties, trusts, initialSelection, onClose, onRefinance }) => {
+            const [selectedId, setSelectedId] = useState(initialSelection?.propertyId || properties[0]?.prop.id || '');
+            const [amountToRelease, setAmountToRelease] = useState(0);
+            useEffect(() => { if (initialSelection) setSelectedId(initialSelection.propertyId); }, [initialSelection]);
+            const selected = properties.find(p => p.prop.id === selectedId);
+            const property = selected?.prop;
+            const trust = trusts.find(t => t.id === selected?.trustId);
+            if (!property || !trust) return null;
+            const maxLoan = getMaxLoan(property.value);
+            const availableEquity = Math.max(0, maxLoan - property.loan);
+            const trustCurrentDebt = trust.properties.reduce((acc, p) => acc + p.loan, 0);
+            const trustRemainingCapacity = Math.max(0, trust.maxBorrowing - trustCurrentDebt);
+            const maxReleaseable = Math.min(availableEquity, trustRemainingCapacity);
+            const setAmountByLVR = (targetLVR) => { const targetLoan = property.value * (targetLVR / 100); const additionalNeeded = targetLoan - property.loan; if (additionalNeeded > 0) setAmountToRelease(Math.floor(Math.min(additionalNeeded, maxReleaseable))); else setAmountToRelease(0); };
+            const newTotalLoanRaw = property.loan + amountToRelease;
+            const lmiCost = calculateLMI(newTotalLoanRaw, property.value);
+            const finalNewLoan = newTotalLoanRaw + lmiCost;
+            const finalLVR = (finalNewLoan / property.value) * 100;
+            return (
+                <Modal title="Release Equity" onClose={onClose}>
+                    <form onSubmit={(e) => { e.preventDefault(); if (amountToRelease > 0 && amountToRelease <= maxReleaseable) onRefinance(trust.id, property.id, amountToRelease, lmiCost); }} className="space-y-6">
+                        <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Select Property</label><select value={selectedId} onChange={(e) => { setSelectedId(e.target.value); setAmountToRelease(0); }} className="w-full border dark:border-slate-700 p-2 rounded-lg bg-white dark:bg-slate-800 dark:text-white">{properties.map(({ prop, trustId: tId }) => { const t = trusts.find(tr => tr.id === tId); return <option key={prop.id} value={prop.id}>{prop.name} ({t?.name})</option> })}</select></div>
+                        <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg space-y-2 text-sm dark:text-slate-300"><div className="flex justify-between"><span>Current Value:</span> <span>{formatCurrency(property.value)}</span></div><div className="flex justify-between"><span>Current Loan ({(property.loan/property.value*100).toFixed(1)}%):</span> <span>{formatCurrency(property.loan)}</span></div><div className="border-t dark:border-slate-700 pt-2 flex justify-between font-bold text-green-600 dark:text-green-400"><span>Max Releaseable (88% LVR):</span> <span>{formatCurrency(maxReleaseable)}</span></div></div>
+                        <div><div className="flex justify-between items-end mb-1"><label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Amount to Release</label><div className="flex gap-2"><button type="button" onClick={() => setAmountByLVR(80)} className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition">Max 80%</button><button type="button" onClick={() => setAmountByLVR(88)} className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 transition">Max 88%</button></div></div><div className="relative"><span className="absolute left-3 top-2.5 text-slate-500">$</span><input type="text" value={formatNumber(amountToRelease)} onChange={(e) => { const val = parseFormattedNumber(e.target.value); if (!isNaN(val) && val <= maxReleaseable) setAmountToRelease(val); }} className="w-full pl-8 pr-4 py-2 border dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-800" /></div><input type="range" min="0" max={maxReleaseable} value={amountToRelease} onChange={(e) => setAmountToRelease(Number(e.target.value))} className="w-full mt-2 accent-blue-600" /><div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-1"><span>$0</span><span>{formatCurrency(maxReleaseable)}</span></div>
+                            {amountToRelease > 0 && (<div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm border border-slate-200 dark:border-slate-700 space-y-1">{lmiCost > 0 && (<div className="flex justify-between text-orange-600 dark:text-orange-400 items-center"><span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> LMI Added:</span><span>{formatCurrency(lmiCost)}</span></div>)}<div className="flex justify-between dark:text-slate-300"><span>New Loan Amount:</span><span>{formatCurrency(finalNewLoan)}</span></div><div className="flex justify-between font-bold dark:text-white"><span>New LVR:</span><span className={finalLVR > 80 ? 'text-orange-600 dark:text-orange-400' : 'text-slate-800 dark:text-white'}>{finalLVR.toFixed(2)}%</span></div></div>)}</div>
+                        <button disabled={amountToRelease <= 0 || amountToRelease > maxReleaseable} type="submit" className="w-full bg-emerald-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed hover:bg-emerald-700 text-white font-bold py-3 rounded-lg transition shadow hover:shadow-lg">Confirm & Cash Out {formatCurrency(amountToRelease)}</button>
+                    </form>
+                </Modal>
+            );
+        };
+
+        const GlobalSettingsModal = ({ salary: initSalary, savingsRate: initSavingsRate, maxBorrowingPerTrust: initMaxBorrowing, onClose, onSave }) => {
+            const [salary, setSalary] = useState(initSalary);
+            const [savingsRate, setSavingsRate] = useState(initSavingsRate);
+            const [maxBorrowing, setMaxBorrowing] = useState(initMaxBorrowing);
+            const handleCurrencyChange = (value, setter) => { const num = parseFormattedNumber(value); if (!isNaN(num)) setter(num); };
+            return (
+                <Modal title="Portfolio Settings" onClose={onClose}>
+                    <form onSubmit={(e) => { e.preventDefault(); onSave(salary, savingsRate, maxBorrowing); }} className="space-y-4">
+                        <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Annual Salary</label><div className="relative"><span className="absolute left-3 top-2 text-slate-500">$</span><input type="text" value={formatNumber(salary)} onChange={(e) => handleCurrencyChange(e.target.value, setSalary)} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white pl-6 p-2 rounded-lg" /></div></div>
+                        <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Savings Rate (%)</label><div className="relative"><input type="number" min="0" max="100" value={savingsRate} onChange={(e) => setSavingsRate(Number(e.target.value))} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white p-2 rounded-lg" /></div></div>
+                        <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Global Max Borrowing per Trust</label><div className="relative"><span className="absolute left-3 top-2 text-slate-500">$</span><input type="text" value={formatNumber(maxBorrowing)} onChange={(e) => handleCurrencyChange(e.target.value, setMaxBorrowing)} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white pl-6 p-2 rounded-lg" /></div><p className="text-xs text-slate-500 mt-1">Updates limit for all new and existing trusts.</p></div>
+                        <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded-lg hover:bg-blue-700 mt-2">Save Changes</button>
+                    </form>
+                </Modal>
+            )
+        };
+
+        const TrustSettingsModal = ({ trust, onClose, onSave }) => {
+            const [maxBorrowing, setMaxBorrowing] = useState(trust.maxBorrowing);
+            const handleCurrencyChange = (value, setter) => { const num = parseFormattedNumber(value); if (!isNaN(num)) setter(num); };
+            return (
+                <Modal title={`Settings: ${trust.name}`} onClose={onClose}>
+                    <form onSubmit={(e) => { e.preventDefault(); onSave(trust.id, maxBorrowing); }} className="space-y-4">
+                        <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Max Borrowing Capacity</label><div className="relative"><span className="absolute left-3 top-2 text-slate-500">$</span><input type="text" value={formatNumber(maxBorrowing)} onChange={(e) => handleCurrencyChange(e.target.value, setMaxBorrowing)} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white pl-6 p-2 rounded-lg" /></div></div>
+                        <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded-lg hover:bg-blue-700 mt-2">Update Trust</button>
+                    </form>
+                </Modal>
+            )
+        };
+
+        const PropertySettingsModal = ({ property, onClose, onSave }) => {
+            const [growthRate, setGrowthRate] = useState(property.growthRate);
+            const [yieldRate, setYieldRate] = useState(property.yieldRate);
+            return (
+                <Modal title={`Edit: ${property.name}`} onClose={onClose}>
+                    <form onSubmit={(e) => { e.preventDefault(); onSave(property.id, growthRate, yieldRate); }} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Annual Capital Growth (%)</label><div className="relative"><input type="number" step="0.1" value={growthRate} onChange={(e) => setGrowthRate(Number(e.target.value))} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white p-2 rounded-lg" /></div></div>
+                            <div><label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Yield (%)</label><div className="relative"><input type="number" step="0.1" value={yieldRate} onChange={(e) => setYieldRate(Number(e.target.value))} className="w-full border dark:border-slate-700 bg-white dark:bg-slate-800 dark:text-white p-2 rounded-lg" /></div><p className="text-[10px] text-slate-500 mt-1">Gross for Residential, Net for Commercial</p></div>
+                        </div>
+                        <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded-lg hover:bg-blue-700 mt-2">Update Property</button>
+                    </form>
+                </Modal>
+            )
+        };
+
+        // --- MAIN APP ---
+        function App() {
+            const [gameState, setGameState] = useState(INITIAL_GAME_STATE);
+            const [showBuyModal, setShowBuyModal] = useState(false);
+            const [preSelectedTrustId, setPreSelectedTrustId] = useState(undefined);
+            const [refinanceSelection, setRefinanceSelection] = useState(null);
+            const [sellSelection, setSellSelection] = useState(null);
+            const [payDownSelection, setPayDownSelection] = useState(null);
+            const [showGlobalSettings, setShowGlobalSettings] = useState(false);
+            const [trustSettingsSelection, setTrustSettingsSelection] = useState(null);
+            const [propertySettingsSelection, setPropertySettingsSelection] = useState(null);
+            const [showHistory, setShowHistory] = useState(false);
+            const [darkMode, setDarkMode] = useState(false);
+
+            useEffect(() => {
+                if (darkMode) { document.documentElement.classList.add('dark'); } 
+                else { document.documentElement.classList.remove('dark'); }
+            }, [darkMode]);
+
+            const totalProperties = useMemo(() => gameState.trusts.reduce((acc, t) => acc + t.properties.length, 0), [gameState.trusts]);
+            const totalValue = useMemo(() => gameState.trusts.reduce((acc, t) => acc + t.properties.reduce((pAcc, p) => pAcc + p.value, 0), 0), [gameState.trusts]);
+            const totalDebt = useMemo(() => gameState.trusts.reduce((acc, t) => acc + t.properties.reduce((pAcc, p) => pAcc + p.loan, 0), 0), [gameState.trusts]);
+            const totalEquity = totalValue - totalDebt;
+            const netWorth = totalEquity + gameState.cash;
+
+            const annualCashflow = useMemo(() => {
+                let total = 0;
+                gameState.trusts.forEach(trust => {
+                trust.properties.forEach(prop => {
+                    const monthlyInterest = calculateMonthlyInterest(prop.loan, prop.interestRate);
+                    let monthlyRent = 0;
+                    let monthlyExpenses = 0;
+                    if (prop.type.startsWith('RESIDENTIAL')) {
+                        monthlyRent = (prop.value * (prop.yieldRate / 100)) / 12;
+                        monthlyExpenses = (prop.value * 0.02) / 12; 
+                    } else {
+                        monthlyRent = (prop.value * (prop.yieldRate / 100)) / 12;
+                        monthlyExpenses = 0; 
+                    }
+                    total += (monthlyRent - monthlyInterest - monthlyExpenses);
+                });
+                });
+                return total * 12; 
+            }, [gameState.trusts]);
+
+            const handleStart = (setupData) => { setGameState(prev => ({ ...prev, ...setupData, setupComplete: true })); };
+            const handleOpenTrust = () => { if (gameState.cash < 3000) { alert("Insufficient cash to open a Trust ($3,000 required)."); return; } const newTrust = { id: Math.random().toString(36).substr(2, 9), name: `Trust ${gameState.trusts.length + 1}`, maxBorrowing: gameState.maxBorrowingPerTrust, properties: [] }; setGameState(prev => ({ ...prev, cash: prev.cash - 3000, trusts: [...prev.trusts, newTrust] })); };
+            const handleBuyProperty = (trustId, propertyData, cost) => { const newProperty = { ...propertyData, id: Math.random().toString(36).substr(2, 9), boughtAt: gameState.year * 12 + gameState.month }; setGameState(prev => { const updatedTrusts = prev.trusts.map(t => { if (t.id === trustId) { return { ...t, properties: [...t.properties, newProperty] }; } return t; }); return { ...prev, cash: prev.cash - cost, trusts: updatedTrusts }; }); setShowBuyModal(false); setPreSelectedTrustId(undefined); };
+            const handleSellProperty = (trustId, propertyId, netProceeds) => { setGameState(prev => { const updatedTrusts = prev.trusts.map(t => { if(t.id === trustId) { return { ...t, properties: t.properties.filter(p => p.id !== propertyId) } } return t; }); return { ...prev, cash: prev.cash + netProceeds, trusts: updatedTrusts } }); setSellSelection(null); }
+            const handlePayDownLoan = (trustId, propertyId, amount) => { setGameState(prev => { const updatedTrusts = prev.trusts.map(t => { if (t.id === trustId) { return { ...t, properties: t.properties.map(p => { if (p.id === propertyId) { return { ...p, loan: Math.max(0, p.loan - amount) }; } return p; }) } } return t; }); return { ...prev, cash: prev.cash - amount, trusts: updatedTrusts } }); setPayDownSelection(null); }
+            const handleRefinance = (trustId, propertyId, additionalLoan, lmiCost) => { setGameState(prev => { const updatedTrusts = prev.trusts.map(t => { if (t.id === trustId) { const updatedProps = t.properties.map(p => { if (p.id === propertyId) { return { ...p, loan: p.loan + additionalLoan + lmiCost }; } return p; }); return { ...t, properties: updatedProps }; } return t; }); return { ...prev, cash: prev.cash + additionalLoan, trusts: updatedTrusts }; }); setRefinanceSelection(null); };
+            const handleGlobalSettingsSave = (salary, savingsRate, maxBorrowing) => { setGameState(prev => ({ ...prev, salary, savingsRate, maxBorrowingPerTrust: maxBorrowing, trusts: prev.trusts.map(t => ({ ...t, maxBorrowing: maxBorrowing })) })); setShowGlobalSettings(false); }
+            const handleTrustSettingsSave = (trustId, maxBorrowing) => { setGameState(prev => ({ ...prev, trusts: prev.trusts.map(t => t.id === trustId ? { ...t, maxBorrowing } : t) })); setTrustSettingsSelection(null); }
+            const handlePropertySettingsSave = (propertyId, growthRate, yieldRate) => { setGameState(prev => ({ ...prev, trusts: prev.trusts.map(t => ({ ...t, properties: t.properties.map(p => p.id === propertyId ? { ...p, growthRate, yieldRate } : p) })) })); setPropertySettingsSelection(null); }
+
+            const advanceTime = () => {
+                const monthsPassed = 3; let accumulatedCash = 0;
+                const newTrusts = gameState.trusts.map(trust => {
+                const newProperties = trust.properties.map(prop => {
+                    let periodRent = 0; let periodExpenses = 0;
+                    if (prop.type.startsWith('RESIDENTIAL')) { const annualRent = prop.value * (prop.yieldRate / 100); periodRent = (annualRent / 12) * monthsPassed; periodExpenses = (prop.value * 0.02 / 12) * monthsPassed; } 
+                    else { const annualRent = prop.value * (prop.yieldRate / 100); periodRent = (annualRent / 12) * monthsPassed; periodExpenses = 0; }
+                    const annualInterest = prop.loan * (prop.interestRate / 100);
+                    const periodInterest = (annualInterest / 12) * monthsPassed;
+                    accumulatedCash += (periodRent - periodInterest - periodExpenses);
+                    const growthFactor = 1 + (prop.growthRate / 100) * (monthsPassed / 12);
+                    const newValue = prop.value * growthFactor;
+                    return { ...prop, value: newValue };
+                });
+                return { ...trust, properties: newProperties };
+                });
+                const quarterlySavings = (gameState.salary * (gameState.savingsRate / 100)) / 4;
+                accumulatedCash += quarterlySavings;
+                let newMonth = gameState.month + monthsPassed;
+                let newYear = gameState.year;
+                if (newMonth >= 12) { newYear += 1; newMonth = newMonth % 12; }
+                const nextTotalValue = newTrusts.reduce((acc, t) => acc + t.properties.reduce((pAcc, p) => pAcc + p.value, 0), 0);
+                const nextTotalDebt = newTrusts.reduce((acc, t) => acc + t.properties.reduce((pAcc, p) => pAcc + p.loan, 0), 0); 
+                const nextCash = gameState.cash + accumulatedCash;
+                const nextNetWorth = nextTotalValue - nextTotalDebt + nextCash;
+                setGameState(prev => ({ ...prev, year: newYear, month: newMonth, cash: nextCash, trusts: newTrusts, history: [...prev.history, { label: `Y${newYear}`, netWorth: nextNetWorth, cash: nextCash, debt: nextTotalDebt }] }));
+            };
+
+            if (!gameState.setupComplete) {
+                return <SetupScreen onStart={handleStart} darkMode={darkMode} onToggleTheme={() => setDarkMode(!darkMode)} />;
+            }
+
+            const allProperties = gameState.trusts.flatMap(t => t.properties.map(p => ({ prop: p, trustId: t.id })));
+            const timelineMaxYear = Math.max(10, gameState.year + 2); 
+            const currentProgress = gameState.year + (gameState.month / 12);
+            const progressPercentage = Math.min((currentProgress / timelineMaxYear) * 100, 100);
+            const timelineTicks = Array.from({ length: timelineMaxYear + 1 }, (_, i) => i);
+
+            const TimelineWidget = ({ compact = false }) => (
+                <div className={`flex flex-col min-w-[80px] md:min-w-[100px] border-r border-slate-100 dark:border-slate-800 pr-6 mr-2 ${compact ? 'items-end' : ''}`}>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold flex items-center gap-1">{!compact && <Clock className="w-3 h-3" />} Timeline</span>
+                    <span className={`font-bold text-slate-800 dark:text-white flex items-baseline gap-1 ${compact ? 'text-sm' : 'text-xl'}`}>Y{gameState.year} <span className="text-xs md:text-sm text-slate-400 dark:text-slate-500 font-medium">M{gameState.month}</span></span>
+                </div>
+            );
+
+            const ChartButton = ({ compact = false }) => (<button onClick={() => setShowHistory(!showHistory)} className={`p-2.5 rounded-lg transition border flex items-center gap-2 text-sm font-medium ${showHistory ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/50 dark:border-blue-800 dark:text-blue-300' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800'}`}><BarChart2 className={compact ? "w-4 h-4" : "w-5 h-5"} /><span className={compact ? "hidden" : "hidden md:inline"}>Chart</span></button>);
+            const ThemeButton = ({ compact = false }) => (<button onClick={() => setDarkMode(!darkMode)} className="p-2.5 rounded-lg transition border flex items-center gap-2 text-sm font-medium bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800" title="Toggle Dark Mode">{darkMode ? <Sun className={compact ? "w-4 h-4" : "w-5 h-5"} /> : <Moon className={compact ? "w-4 h-4" : "w-5 h-5"} />}</button>);
+            const SettingsButton = ({ compact = false }) => (<button onClick={() => setShowGlobalSettings(true)} className="p-2.5 rounded-lg transition border flex items-center gap-2 text-sm font-medium bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800" title="Global Settings"><Settings className={compact ? "w-4 h-4" : "w-5 h-5"} /></button>);
+
+            return (
+                <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans pb-20 transition-colors duration-300">
+                <div className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm px-4 py-3 lg:px-8">
+                    <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
+                        <div className="flex items-center gap-4"><div className="bg-blue-600 p-2.5 rounded-xl text-white shadow-md"><Building className="w-6 h-6" /></div><div className="flex flex-col md:flex-row md:items-center gap-4"><h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-800 dark:text-white">PropertySim</h1></div></div>
+                        <div className="flex md:hidden items-center gap-1"><SettingsButton compact /><ThemeButton compact /><ChartButton compact /></div>
+                    </div>
+                    <div className="flex gap-4 lg:gap-8 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-center">
+                        <TimelineWidget />
+                        <div className="flex flex-col min-w-[100px]"><span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold">Net Worth</span><span className="text-xl font-bold text-slate-800 dark:text-white">{formatCurrency(netWorth)}</span></div>
+                        <div className="flex flex-col min-w-[100px]"><span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold">Cash</span><span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(gameState.cash)}</span></div>
+                        <div className="flex flex-col min-w-[100px]"><span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold">Annual Cashflow</span><span className={`text-xl font-bold ${annualCashflow >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>{annualCashflow > 0 ? '+' : ''}{formatCurrency(annualCashflow)}</span></div>
+                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 hidden md:block"></div>
+                        <div className="hidden md:flex items-center gap-2"><SettingsButton /><ThemeButton /><ChartButton /></div>
+                    </div>
+                    </div>
+                </div>
+
+                <div className="max-w-7xl mx-auto p-4 lg:p-8 space-y-8">
+                    <div className="w-full bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div className="flex justify-between items-center mb-4"><span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><Clock className="w-3 h-3" /> Investment Journey</span><span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded border border-blue-100 dark:border-blue-900/50">Projected Scale</span></div>
+                    <div className="px-4"> 
+                        <div className="relative h-3 bg-slate-100 dark:bg-slate-800 rounded-full w-full mt-2">
+                            {timelineTicks.map(year => (<div key={year} className="absolute top-0 bottom-0 w-px bg-slate-300 dark:bg-slate-600 h-full" style={{ left: `${(year / timelineMaxYear) * 100}%` }}></div>))}
+                            <div className="absolute top-0 left-0 bottom-0 bg-blue-500 rounded-full transition-all duration-300 ease-out" style={{ width: `${progressPercentage}%` }}><div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white dark:bg-slate-900 border-4 border-blue-600 rounded-full shadow-lg z-10" /></div>
+                        </div>
+                        <div className="relative h-6 mt-2">{timelineTicks.map(year => (<span key={year} className="text-[10px] text-slate-400 dark:text-slate-500 font-medium absolute top-0 -translate-x-1/2" style={{ left: `${(year / timelineMaxYear) * 100}%` }}>Y{year}</span>))}</div>
+                    </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <StatCard label="Total Equity" value={formatCurrency(totalEquity)} icon={<Wallet className="w-4 h-4"/>} color="green" />
+                        <StatCard label="Portfolio Value" value={formatCurrency(totalValue)} icon={<TrendingUp className="w-4 h-4"/>} color="blue" />
+                        <StatCard label="Total Debt" value={formatCurrency(totalDebt)} icon={<Briefcase className="w-4 h-4"/>} color="slate" />
+                        <StatCard label="Trusts Active" value={gameState.trusts.length.toString()} subValue={`Global Cap: ${formatCurrency(gameState.maxBorrowingPerTrust)}`} icon={<Building className="w-4 h-4"/>} />
+                    </div>
+
+                    {showHistory && (
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 animate-in slide-in-from-top-4 duration-300">
+                        <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><PieChart className="w-4 h-4"/> Performance History</h3>
+                        <div className="h-72 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={gameState.history} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#334155" : "#f1f5f9"} vertical={false} />
+                                <XAxis dataKey="label" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                                <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(val) => `$${val/1000}k`} tickLine={false} axisLine={false} dx={-10} />
+                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: darkMode ? '#1e293b' : '#fff', color: darkMode ? '#fff' : '#000' }} formatter={(value, name) => [formatCurrency(value), name]} />
+                                <Legend verticalAlign="top" height={36} />
+                                <Line name="Net Worth" type="monotone" dataKey="netWorth" stroke="#2563eb" strokeWidth={3} dot={{ r: 4, fill: '#2563eb', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                                <Line name="Cash" type="monotone" dataKey="cash" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 0 }} />
+                                <Line name="Debt" type="monotone" dataKey="debt" stroke="#cbd5e1" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                            </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-4">
+                    <button onClick={() => { if(gameState.trusts.length === 0) { alert("Open a Trust first!"); return; } setShowBuyModal(true); }} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 text-slate-700 dark:text-slate-300 px-6 py-4 rounded-xl shadow-sm transition group">
+                        <div className="bg-slate-100 dark:bg-slate-800 group-hover:bg-blue-100 dark:group-hover:bg-blue-900 p-2 rounded-full transition"><Home className="w-5 h-5" /></div>
+                        <div className="text-left"><div className="font-bold text-sm">Buy Property</div><div className="text-xs text-slate-400">Res or Comm</div></div>
+                    </button>
+                    <button onClick={() => { if(totalProperties === 0) { alert("No properties to refinance."); return; } setRefinanceSelection({ trustId: gameState.trusts[0].id, propertyId: gameState.trusts[0].properties[0].id }); }} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 text-slate-700 dark:text-slate-300 px-6 py-4 rounded-xl shadow-sm transition group">
+                        <div className="bg-slate-100 dark:bg-slate-800 group-hover:bg-blue-100 dark:group-hover:bg-blue-900 p-2 rounded-full transition"><DollarSign className="w-5 h-5" /></div>
+                        <div className="text-left"><div className="font-bold text-sm">Equity Release</div><div className="text-xs text-slate-400">Up to 88% LVR</div></div>
+                    </button>
+                    </div>
+
+                    <div>
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">Portfolio Structure <span className="text-xs font-normal text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">{gameState.trusts.length} Entities</span></h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {gameState.trusts.map(trust => {
+                            const trustValue = trust.properties.reduce((acc, p) => acc + p.value, 0);
+                            const trustDebt = trust.properties.reduce((acc, p) => acc + p.loan, 0);
+                            const capacityUsed = (trustDebt / trust.maxBorrowing) * 100;
+                            return (
+                            <div key={trust.id} className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col h-full">
+                                <div className="bg-slate-50 dark:bg-slate-800 px-5 py-3 border-b border-slate-100 dark:border-slate-700 rounded-t-xl group/header relative">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center gap-2"><h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Briefcase className="w-4 h-4 text-slate-500 dark:text-slate-400" /> {trust.name}</h3><button onClick={(e) => { e.stopPropagation(); setTrustSettingsSelection(trust); }} className="text-slate-400 hover:text-blue-600 p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition" title="Edit Trust Settings"><Settings className="w-3.5 h-3.5" /></button></div>
+                                        <div className="text-xs font-semibold bg-white dark:bg-slate-900 border dark:border-slate-700 px-2 py-0.5 rounded text-slate-500 dark:text-slate-400">{trust.properties.length} Assets</div>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400"><span>Borrowed: {formatCurrency(trustDebt)} <span className={capacityUsed > 90 ? 'text-red-500 dark:text-red-400 font-bold' : 'text-slate-400 dark:text-slate-500'}>({capacityUsed.toFixed(0)}%)</span></span></div>
+                                    <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full mt-2 overflow-hidden"><div className={`h-full rounded-full ${capacityUsed > 90 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${Math.min(capacityUsed, 100)}%` }} /></div>
+                                </div>
+                                <div className="p-4 space-y-4 flex-grow bg-slate-50/30 dark:bg-slate-800/30">
+                                    {trust.properties.length === 0 && (<div className="flex flex-col items-center justify-center text-center py-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50/50 dark:bg-slate-800/50"><p className="text-sm text-slate-400 italic mb-3">No assets in this trust.</p><button onClick={() => { setPreSelectedTrustId(trust.id); setShowBuyModal(true); }} className="text-xs bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 transition shadow-sm font-medium flex items-center gap-1"><Plus className="w-3 h-3" /> Buy Property</button></div>)}
+                                    {trust.properties.map(prop => {
+                                        const equity = prop.value - prop.loan;
+                                        const usableEquity = Math.max(0, getMaxLoan(prop.value) - prop.loan);
+                                        const lvr = (prop.loan / prop.value) * 100;
+                                        const profitSinceBuy = prop.value - prop.originalPrice;
+                                        const profitPercent = (profitSinceBuy / prop.originalPrice) * 100;
+                                        const boughtYear = Math.floor(prop.boughtAt / 12);
+                                        const boughtMonth = prop.boughtAt % 12;
+
+                                        return (
+                                        <div key={prop.id} className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm hover:shadow-md transition group overflow-hidden">
+                                            <div className="p-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-start">
+                                                <div className="flex items-center gap-2"><div className={`p-1.5 rounded-md ${prop.type.startsWith('RESIDENTIAL') ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'}`}>{prop.type.startsWith('RESIDENTIAL') ? <Home className="w-4 h-4" /> : <Store className="w-4 h-4" />}</div><div><div className="font-semibold text-slate-800 dark:text-white text-sm leading-tight pr-4">{prop.name}</div><div className="text-[10px] text-slate-400 uppercase tracking-wide">{prop.type === 'COMMERCIAL' ? 'Commercial' : (prop.type === 'RESIDENTIAL_CASHFLOW' ? 'Res Cashflow' : 'Res Growth')}</div></div></div>
+                                                <div className="flex items-center gap-1.5"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${lvr > 80 ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border border-orange-100 dark:border-orange-800' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800'}`}>{lvr.toFixed(0)}% LVR</span><button onClick={(e) => { e.stopPropagation(); setPropertySettingsSelection(prop); }} className="text-slate-300 hover:text-blue-500 p-1 hover:bg-slate-50 dark:hover:bg-slate-800 rounded transition" title="Edit Property"><Settings className="w-3.5 h-3.5" /></button></div>
+                                            </div>
+                                            <div className="p-3 text-sm dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/20">
+                                                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                                    <div className="flex justify-between items-center"><span className="text-[10px] text-slate-400 uppercase">Current Value</span><span className="font-bold text-slate-700 dark:text-white">{formatCurrency(prop.value)}</span></div>
+                                                    <div className="flex justify-between items-center"><span className="text-[10px] text-slate-400 uppercase">Loan</span><span className="font-medium">{formatCurrency(prop.loan)}</span></div>
+                                                    <div className="flex justify-between items-center"><span className="text-[10px] text-slate-400 uppercase">Purchase</span><span className="text-slate-500 dark:text-slate-400 text-xs">{formatCurrency(prop.originalPrice)}</span></div>
+                                                    <div className="flex justify-between items-center"><span className="text-[10px] text-slate-400 uppercase">Equity</span><span className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(equity)}</span></div>
+                                                    <div className="flex justify-between items-center"><span className="text-[10px] text-slate-400 uppercase">Growth</span><span className="text-green-600 dark:text-green-400 font-bold text-xs">+{profitPercent.toFixed(1)}%</span></div>
+                                                    <div className="flex justify-between items-center"><span className="text-[10px] text-slate-400 uppercase">Usable</span><span className="font-medium text-blue-600 dark:text-blue-400">{formatCurrency(usableEquity)}</span></div>
+                                                    <div className="flex justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-1 mt-1"><span className="text-[10px] text-slate-400 uppercase">Yield</span><span className="text-xs">{prop.yieldRate}%</span></div>
+                                                    <div className="flex justify-between items-center border-t border-slate-100 dark:border-slate-700 pt-1 mt-1"><span className="text-[10px] text-slate-400 uppercase">Age</span><span className="text-xs text-slate-500">Y{boughtYear} M{boughtMonth}</span></div>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 border-t border-slate-100 dark:border-slate-700 divide-x divide-slate-100 dark:divide-slate-700">
+                                                <button onClick={() => setRefinanceSelection({ trustId: trust.id, propertyId: prop.id })} className="py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 transition flex items-center justify-center gap-1"><Coins className="w-3 h-3" /> Equity</button>
+                                                {prop.type === 'COMMERCIAL' ? (
+                                                    <div className="grid grid-cols-2 divide-x divide-slate-100 dark:divide-slate-700">
+                                                        <button onClick={() => setPayDownSelection({ trustId: trust.id, property: prop })} className="py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 transition flex items-center justify-center gap-1" title="Pay Down Loan"><ArrowDownCircle className="w-3 h-3" /> Pay loan</button>
+                                                        <button onClick={() => setSellSelection({ trustId: trust.id, property: prop })} className="py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition flex items-center justify-center gap-1" title="Sell Asset"><DollarSign className="w-3 h-3" /> Sell</button>
+                                                    </div>
+                                                ) : (<button onClick={() => setSellSelection({ trustId: trust.id, property: prop })} className="py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition flex items-center justify-center gap-1"><DollarSign className="w-3 h-3" /> Sell</button>)}
+                                            </div>
+                                        </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            );
+                        })}
+                        <button onClick={handleOpenTrust} className="group border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl flex flex-col items-center justify-center p-8 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition h-full min-h-[200px]">
+                            <div className="bg-slate-100 dark:bg-slate-800 group-hover:bg-blue-200 dark:group-hover:bg-blue-800 p-4 rounded-full mb-3 transition"><Plus className="w-6 h-6 text-slate-500 dark:text-slate-400 group-hover:text-blue-700 dark:group-hover:text-blue-300" /></div>
+                            <span className="font-semibold text-slate-600 dark:text-slate-300 group-hover:text-blue-700 dark:group-hover:text-blue-400">Open New Trust</span><span className="text-sm text-slate-400 mt-1">Cost: $3,000</span>
+                        </button>
+                        </div>
+                    </div>
+                    <div className="fixed bottom-6 right-6 z-40"><button onClick={advanceTime} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 font-bold text-sm md:text-lg">Next quarter <ChevronRight className="w-4 h-4 md:w-6 md:h-6" /></button></div>
+                </div>
+                {showBuyModal && <BuyPropertyModal trusts={gameState.trusts} cash={gameState.cash} initialTrustId={preSelectedTrustId} onClose={() => { setShowBuyModal(false); setPreSelectedTrustId(undefined); }} onBuy={handleBuyProperty} />}
+                {refinanceSelection && <RefinanceModal properties={allProperties} trusts={gameState.trusts} initialSelection={refinanceSelection} onClose={() => setRefinanceSelection(null)} onRefinance={handleRefinance} />}
+                {sellSelection && <SellPropertyModal property={sellSelection.property} trustId={sellSelection.trustId} currentDate={{ year: gameState.year, month: gameState.month }} onClose={() => setSellSelection(null)} onSell={handleSellProperty} />}
+                {payDownSelection && <PayDownModal property={payDownSelection.property} trustId={payDownSelection.trustId} cashAvailable={gameState.cash} onClose={() => setPayDownSelection(null)} onPayDown={handlePayDownLoan} />}
+                {showGlobalSettings && <GlobalSettingsModal salary={gameState.salary} savingsRate={gameState.savingsRate} maxBorrowingPerTrust={gameState.maxBorrowingPerTrust} onClose={() => setShowGlobalSettings(false)} onSave={handleGlobalSettingsSave} />}
+                {trustSettingsSelection && <TrustSettingsModal trust={trustSettingsSelection} onClose={() => setTrustSettingsSelection(null)} onSave={handleTrustSettingsSave} />}
+                {propertySettingsSelection && <PropertySettingsModal property={propertySettingsSelection} onClose={() => setPropertySettingsSelection(null)} onSave={handlePropertySettingsSave} />}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
 </html>
