@@ -9,7 +9,8 @@ import {
     PayDownModal, 
     GlobalSettingsModal, 
     TrustSettingsModal, 
-    PropertySettingsModal 
+    PropertySettingsModal,
+    InstructionsModal
 } from './components/Modals';
 import { formatCurrency, formatPercentage, getMaxLoan, calculateMonthlyInterest } from './utils/format';
 import { 
@@ -30,7 +31,8 @@ import {
   BookOpen,
   Moon,
   Sun,
-  ChevronRight
+  ChevronRight,
+  HelpCircle
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -51,7 +53,7 @@ export default function App() {
   const [propertySettingsSelection, setPropertySettingsSelection] = useState<Property | null>(null);
 
   const [showHistory, setShowHistory] = useState(false);
-  const [showGuide, setShowGuide] = useState(false); // Used in header button now
+  const [showGuide, setShowGuide] = useState(false); 
   const [darkMode, setDarkMode] = useState(false);
 
   // Apply dark mode class to html element
@@ -344,17 +346,6 @@ export default function App() {
   const timelineTicks = Array.from({ length: timelineMaxYear + 1 }, (_, i) => i);
 
   // Reusable Buttons
-  const TimelineWidget = ({ compact = false }) => (
-      <div className={`flex flex-col min-w-[80px] md:min-w-[100px] border-r border-slate-100 dark:border-slate-800 pr-6 mr-2 ${compact ? 'items-end' : ''}`}>
-         <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold flex items-center gap-1">
-            {!compact && <Clock className="w-3 h-3" />} Timeline
-         </span>
-         <span className={`font-bold text-slate-800 dark:text-white flex items-baseline gap-1 ${compact ? 'text-sm' : 'text-xl'}`}>
-            Y{gameState.year} <span className="text-xs md:text-sm text-slate-400 dark:text-slate-500 font-medium">M{gameState.month}</span>
-         </span>
-      </div>
-  );
-
   const ChartButton = ({ compact = false }) => (
       <button 
          onClick={() => setShowHistory(!showHistory)} 
@@ -363,6 +354,7 @@ export default function App() {
              ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/50 dark:border-blue-800 dark:text-blue-300' 
              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800'
          }`}
+         title="Toggle Charts"
       >
          <BarChart2 className={compact ? "w-4 h-4" : "w-5 h-5"} />
          <span className={compact ? "hidden" : "hidden md:inline"}>Chart</span>
@@ -389,6 +381,16 @@ export default function App() {
       </button>
   );
 
+  const HelpButton = ({ compact = false }) => (
+    <button 
+       onClick={() => setShowGuide(true)} 
+       className="p-2.5 rounded-lg transition border flex items-center gap-2 text-sm font-medium bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+       title="How to Play"
+    >
+       <BookOpen className={compact ? "w-4 h-4" : "w-5 h-5"} />
+    </button>
+);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans pb-20 transition-colors duration-300">
       
@@ -406,6 +408,7 @@ export default function App() {
             </div>
              {/* Mobile Controls */}
              <div className="flex md:hidden items-center gap-1">
+                 <HelpButton compact />
                  <SettingsButton compact />
                  <ThemeButton compact />
                  <ChartButton compact />
@@ -413,8 +416,7 @@ export default function App() {
           </div>
           
           <div className="flex gap-4 lg:gap-8 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 items-center">
-             <TimelineWidget />
-
+             
              <div className="flex flex-col min-w-[100px]">
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold">Net Worth</span>
                 <span className="text-xl font-bold text-slate-800 dark:text-white">{formatCurrency(netWorth)}</span>
@@ -433,6 +435,7 @@ export default function App() {
              <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 hidden md:block"></div>
 
              <div className="hidden md:flex items-center gap-2">
+                <HelpButton />
                 <SettingsButton />
                 <ThemeButton />
                 <ChartButton />
@@ -446,8 +449,15 @@ export default function App() {
 
         {/* Timeline Visualization */}
         <div className="w-full bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
-           <div className="flex justify-between items-center mb-4">
-               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><Clock className="w-3 h-3" /> Investment Journey</span>
+           <div className="flex justify-between items-end mb-6">
+               <div>
+                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                      <Clock className="w-3 h-3" /> Timeline
+                   </span>
+                   <div className="text-2xl font-bold text-slate-800 dark:text-white flex items-baseline gap-1">
+                      Y{gameState.year} <span className="text-lg text-slate-400 dark:text-slate-500 font-medium">M{gameState.month}</span>
+                   </div>
+               </div>
                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded border border-blue-100 dark:border-blue-900/50">Projected Scale</span>
            </div>
            
@@ -830,6 +840,10 @@ export default function App() {
             onClose={() => setPropertySettingsSelection(null)}
             onSave={handlePropertySettingsSave}
           />
+      )}
+
+      {showGuide && (
+          <InstructionsModal onClose={() => setShowGuide(false)} />
       )}
     </div>
   );

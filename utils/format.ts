@@ -30,6 +30,12 @@ export const getMaxLoan = (value: number): number => {
 
 export const calculateLMI = (loanAmount: number, value: number): number => {
   const lvr = loanAmount / value;
+  
+  // Bank usually rejects LVR > 95% for investment
+  if (lvr > 0.95) {
+      return -1; 
+  }
+
   // Simple rule: If LVR > 80%, LMI is roughly 1.5% of the total loan amount
   if (lvr > 0.80) {
     return loanAmount * 0.015;

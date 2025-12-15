@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GameState } from '../types';
 import { Building2, Wallet, Landmark, Percent, Moon, Sun, BookOpen, X, TrendingUp, Building, Home, Coins, Clock } from 'lucide-react';
 import { formatNumber, parseFormattedNumber } from '../utils/format';
+import { InstructionsModal } from './Modals';
 
 interface SetupScreenProps {
   onStart: (initialState: Partial<GameState>) => void;
@@ -28,76 +29,6 @@ const AppLogo = ({ size = "large" }: { size?: "small" | "large" }) => {
     </div>
   );
 };
-
-// Internal InstructionsModal component
-const InstructionsModal = ({ onClose }: { onClose: () => void }) => (
-  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-    <div className="bg-white dark:bg-slate-900 p-6 rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800 relative">
-      <button 
-        onClick={onClose}
-        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-      >
-        <X className="w-6 h-6" />
-      </button>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
-             <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-        </div>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">How to Play</h2>
-      </div>
-      
-      <div className="space-y-6 text-sm text-slate-600 dark:text-slate-300">
-            <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg border border-blue-100 dark:border-blue-900/50">
-                <h4 className="font-bold text-blue-900 dark:text-blue-200 mb-1 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4" /> The Goal
-                </h4>
-                <p>
-                Build a massive property portfolio. Increase your <strong>Net Worth</strong> (Assets - Debt) and generate positive <strong>Cashflow</strong> to replace your salary.
-                </p>
-            </div>
-
-            <div className="space-y-4">
-                <div>
-                <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Building className="w-4 h-4"/> 1. Trusts & Structure</h5>
-                <p>
-                    You cannot buy properties in your personal name. You must open <strong>Trusts</strong>. Each Trust has a borrowing capacity limit. When a Trust is full, open a new one.
-                </p>
-                </div>
-
-                <div>
-                <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Home className="w-4 h-4"/> 2. Buying Assets</h5>
-                <ul className="list-disc pl-5 space-y-1">
-                    <li><strong>Residential Growth:</strong> High capital growth (value goes up), lower yield. Good for building equity.</li>
-                    <li><strong>Residential Cashflow:</strong> Higher yield, moderate growth. Good for servicing debt.</li>
-                    <li><strong>Commercial:</strong> High yield, lower growth. Excellent for boosting cashflow.</li>
-                </ul>
-                </div>
-
-                <div>
-                <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Coins className="w-4 h-4"/> 3. The Power of Equity</h5>
-                <p>
-                    As properties grow in value, you gain <strong>Equity</strong>. Use "Equity Release" to refinance and turn that paper growth into usable Cash without selling the asset.
-                </p>
-                </div>
-
-                <div>
-                <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Clock className="w-4 h-4"/> 4. Time & Money</h5>
-                <p>
-                    Click <strong>Next Quarter</strong> to advance time by 3 months. Your tenant pays rent, the bank takes interest, and your salary savings are added to your Cash balance.
-                </p>
-                </div>
-            </div>
-      </div>
-      
-      <button 
-        onClick={onClose}
-        className="w-full mt-6 bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition"
-      >
-        Let's Start
-      </button>
-    </div>
-  </div>
-);
 
 const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, onToggleTheme }) => {
   const [salary, setSalary] = useState(150000);

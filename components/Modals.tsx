@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Property, Trust, PropertyType } from '../types';
 import { formatCurrency, getMaxLoan, formatNumber, parseFormattedNumber, calculateLMI } from '../utils/format';
-import { X, HelpCircle, AlertTriangle, TrendingUp, DollarSign, Settings } from 'lucide-react';
+import { X, HelpCircle, AlertTriangle, TrendingUp, DollarSign, Settings, BookOpen, Building, Home, Coins, Clock } from 'lucide-react';
 
 // --- Base Modal ---
 const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => (
@@ -14,6 +14,76 @@ const Modal: React.FC<{ title: string; onClose: () => void; children: React.Reac
         </button>
       </div>
       <div className="p-6">{children}</div>
+    </div>
+  </div>
+);
+
+// --- Instructions Modal ---
+export const InstructionsModal = ({ onClose }: { onClose: () => void }) => (
+  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800 relative">
+      <button 
+        onClick={onClose}
+        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+      >
+        <X className="w-6 h-6" />
+      </button>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+             <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">How to Play</h2>
+      </div>
+      
+      <div className="space-y-6 text-sm text-slate-600 dark:text-slate-300">
+            <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg border border-blue-100 dark:border-blue-900/50">
+                <h4 className="font-bold text-blue-900 dark:text-blue-200 mb-1 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" /> The Goal
+                </h4>
+                <p>
+                Build a massive property portfolio. Increase your <strong>Net Worth</strong> (Assets - Debt) and generate positive <strong>Cashflow</strong> to replace your salary.
+                </p>
+            </div>
+
+            <div className="space-y-4">
+                <div>
+                <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Building className="w-4 h-4"/> 1. Trusts & Structure</h5>
+                <p>
+                    You cannot buy properties in your personal name. You must open <strong>Trusts</strong>. Each Trust has a borrowing capacity limit. When a Trust is full, open a new one.
+                </p>
+                </div>
+
+                <div>
+                <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Home className="w-4 h-4"/> 2. Buying Assets</h5>
+                <ul className="list-disc pl-5 space-y-1">
+                    <li><strong>Residential Growth:</strong> High capital growth (value goes up), lower yield. Good for building equity.</li>
+                    <li><strong>Residential Cashflow:</strong> Higher yield, moderate growth. Good for servicing debt.</li>
+                    <li><strong>Commercial:</strong> High yield, lower growth. Excellent for boosting cashflow.</li>
+                </ul>
+                </div>
+
+                <div>
+                <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Coins className="w-4 h-4"/> 3. The Power of Equity</h5>
+                <p>
+                    As properties grow in value, you gain <strong>Equity</strong>. Use "Equity Release" to refinance and turn that paper growth into usable Cash without selling the asset.
+                </p>
+                </div>
+
+                <div>
+                <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-1 flex items-center gap-2"><Clock className="w-4 h-4"/> 4. Time & Money</h5>
+                <p>
+                    Click <strong>Next Quarter</strong> to advance time by 3 months. Your tenant pays rent, the bank takes interest, and your salary savings are added to your Cash balance.
+                </p>
+                </div>
+            </div>
+      </div>
+      
+      <button 
+        onClick={onClose}
+        className="w-full mt-6 bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition"
+      >
+        Close
+      </button>
     </div>
   </div>
 );
@@ -525,14 +595,15 @@ export const RefinanceModal: React.FC<RefinanceModalProps> = ({ properties, trus
     // LMI Calculation
     const newTotalLoanRaw = property.loan + amountToRelease;
     const lmiCost = calculateLMI(newTotalLoanRaw, property.value);
-    const finalNewLoan = newTotalLoanRaw + lmiCost;
+    const isRisky = lmiCost === -1;
+    const finalNewLoan = isRisky ? newTotalLoanRaw : newTotalLoanRaw + lmiCost;
     const finalLVR = (finalNewLoan / property.value) * 100;
 
     return (
         <Modal title="Release Equity" onClose={onClose}>
             <form onSubmit={(e) => {
                 e.preventDefault();
-                if (amountToRelease > 0 && amountToRelease <= maxReleaseable) {
+                if (amountToRelease > 0 && amountToRelease <= maxReleaseable && !isRisky) {
                     onRefinance(trust.id, property.id, amountToRelease, lmiCost);
                 }
             }} className="space-y-6">
@@ -607,26 +678,34 @@ export const RefinanceModal: React.FC<RefinanceModalProps> = ({ properties, trus
 
                     {amountToRelease > 0 && (
                          <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm border border-slate-200 dark:border-slate-700 space-y-1">
-                            {lmiCost > 0 && (
-                                <div className="flex justify-between text-orange-600 dark:text-orange-400 items-center">
-                                    <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> LMI Added:</span>
-                                    <span>{formatCurrency(lmiCost)}</span>
+                            {isRisky ? (
+                                <div className="text-red-500 font-bold flex items-center gap-1">
+                                    <AlertTriangle className="w-4 h-4" /> LVR > 95% - Too Risky
                                 </div>
+                            ) : (
+                                <>
+                                    {lmiCost > 0 && (
+                                        <div className="flex justify-between text-orange-600 dark:text-orange-400 items-center">
+                                            <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> LMI Added:</span>
+                                            <span>{formatCurrency(lmiCost)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between dark:text-slate-300">
+                                        <span>New Loan Amount:</span>
+                                        <span>{formatCurrency(finalNewLoan)}</span>
+                                    </div>
+                                    <div className="flex justify-between font-bold dark:text-white">
+                                        <span>New LVR:</span>
+                                        <span className={finalLVR > 80 ? 'text-orange-600 dark:text-orange-400' : 'text-slate-800 dark:text-white'}>{finalLVR.toFixed(2)}%</span>
+                                    </div>
+                                </>
                             )}
-                            <div className="flex justify-between dark:text-slate-300">
-                                <span>New Loan Amount:</span>
-                                <span>{formatCurrency(finalNewLoan)}</span>
-                            </div>
-                            <div className="flex justify-between font-bold dark:text-white">
-                                <span>New LVR:</span>
-                                <span className={finalLVR > 80 ? 'text-orange-600 dark:text-orange-400' : 'text-slate-800 dark:text-white'}>{finalLVR.toFixed(2)}%</span>
-                            </div>
                          </div>
                     )}
                 </div>
 
                 <button 
-                    disabled={amountToRelease <= 0 || amountToRelease > maxReleaseable} 
+                    disabled={amountToRelease <= 0 || amountToRelease > maxReleaseable || isRisky} 
                     type="submit" 
                     className="w-full bg-emerald-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed hover:bg-emerald-700 text-white font-bold py-3 rounded-lg transition shadow hover:shadow-lg"
                 >
