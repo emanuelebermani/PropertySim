@@ -39,15 +39,12 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(INITIAL_GAME_STATE);
   const [showBuyModal, setShowBuyModal] = useState(false);
-  // Track which trust triggered the buy modal (for empty state button)
   const [preSelectedTrustId, setPreSelectedTrustId] = useState<string | undefined>(undefined);
   
-  // Selection States
   const [refinanceSelection, setRefinanceSelection] = useState<{trustId: string, propertyId: string} | null>(null);
   const [sellSelection, setSellSelection] = useState<{trustId: string, property: Property} | null>(null);
   const [payDownSelection, setPayDownSelection] = useState<{trustId: string, property: Property} | null>(null);
   
-  // Setting Modal States
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [trustSettingsSelection, setTrustSettingsSelection] = useState<Trust | null>(null);
   const [propertySettingsSelection, setPropertySettingsSelection] = useState<Property | null>(null);
@@ -56,7 +53,6 @@ export default function App() {
   const [showGuide, setShowGuide] = useState(false); 
   const [darkMode, setDarkMode] = useState(false);
 
-  // Apply dark mode class to html element
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -65,7 +61,6 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // --- Derived State ---
   const totalProperties = useMemo(() => 
     gameState.trusts.reduce((acc, t) => acc + t.properties.length, 0), 
   [gameState.trusts]);
@@ -83,23 +78,26 @@ export default function App() {
 
   const annualCashflow = useMemo(() => {
     let total = 0;
+    const currentTotalMonths = gameState.year * 12 + gameState.month;
+
     gameState.trusts.forEach(trust => {
       trust.properties.forEach(prop => {
-        // Residential: Input is Gross Yield. Rent = Value * Gross. Expenses = Value * 2%. Net Yield used effectively = Gross - 2%.
-        // Commercial: Input is Net Yield. Rent = Value * Net. Expenses = 0.
-        
         const monthlyInterest = calculateMonthlyInterest(prop.loan, prop.interestRate);
         
         let monthlyRent = 0;
         let monthlyExpenses = 0;
 
         if (prop.type.startsWith('RESIDENTIAL')) {
-            // prop.yieldRate is Gross Yield
-            monthlyRent = (prop.value * (prop.yieldRate / 100)) / 12;
-            // Expenses are 2% of value annually
+            // Rent grows 5% annually based on PURCHASE PRICE
+            const yearsHeld = Math.max(0, (currentTotalMonths - prop.boughtAt) / 12);
+            const initialAnnualRent = prop.originalPrice * (prop.yieldRate / 100);
+            const currentAnnualRent = initialAnnualRent * Math.pow(1.05, yearsHeld);
+            
+            monthlyRent = currentAnnualRent / 12;
+            // Expenses are 2% of CURRENT VALUE annually
             monthlyExpenses = (prop.value * 0.02) / 12; 
         } else {
-            // Commercial: prop.yieldRate is Net Yield
+            // Commercial: Net Yield based on CURRENT VALUE
             monthlyRent = (prop.value * (prop.yieldRate / 100)) / 12;
             monthlyExpenses = 0; 
         }
@@ -108,9 +106,7 @@ export default function App() {
       });
     });
     return total * 12; // Annualised
-  }, [gameState.trusts]);
-
-  // --- Actions ---
+  }, [gameState.trusts, gameState.year, gameState.month]);
 
   const handleStart = (setupData: Partial<GameState>) => {
     setGameState(prev => ({ ...prev, ...setupData, setupComplete: true }));
@@ -124,7 +120,7 @@ export default function App() {
     const newTrust: Trust = {
       id: Math.random().toString(36).substr(2, 9),
       name: `Trust ${gameState.trusts.length + 1}`,
-      maxBorrowing: gameState.maxBorrowingPerTrust, // Set default from global
+      maxBorrowing: gameState.maxBorrowingPerTrust,
       properties: []
     };
     setGameState(prev => ({
@@ -233,7 +229,6 @@ export default function App() {
           salary,
           savingsRate,
           maxBorrowingPerTrust: maxBorrowing,
-          // Also update all existing trusts to reflect the new global policy if desired
           trusts: prev.trusts.map(t => ({ ...t, maxBorrowing: maxBorrowing }))
       }));
       setShowGlobalSettings(false);
@@ -259,21 +254,23 @@ export default function App() {
   }
 
   const advanceTime = () => {
-    // 3 Months logic
     const monthsPassed = 3;
     let accumulatedCash = 0;
+    const currentTotalMonths = gameState.year * 12 + gameState.month;
     
-    // Create deep copy of trusts to update values
     const newTrusts = gameState.trusts.map(trust => {
       const newProperties = trust.properties.map(prop => {
-        // Rent & Expense Calc logic matches annualCashflow logic
         let periodRent = 0;
         let periodExpenses = 0;
 
         if (prop.type.startsWith('RESIDENTIAL')) {
-             const annualRent = prop.value * (prop.yieldRate / 100);
-             periodRent = (annualRent / 12) * monthsPassed;
-             // Expenses 2% of value annually
+             // Rent grows 5% annually based on PURCHASE PRICE
+             const yearsHeld = Math.max(0, (currentTotalMonths - prop.boughtAt) / 12);
+             const initialAnnualRent = prop.originalPrice * (prop.yieldRate / 100);
+             const currentAnnualRent = initialAnnualRent * Math.pow(1.05, yearsHeld);
+
+             periodRent = (currentAnnualRent / 12) * monthsPassed;
+             // Expenses 2% of CURRENT VALUE annually
              periodExpenses = (prop.value * 0.02 / 12) * monthsPassed;
         } else {
              const annualRent = prop.value * (prop.yieldRate / 100);
@@ -294,11 +291,9 @@ export default function App() {
       return { ...trust, properties: newProperties };
     });
 
-    // Savings Injection
     const quarterlySavings = (gameState.salary * (gameState.savingsRate / 100)) / 4;
     accumulatedCash += quarterlySavings;
 
-    // Update time
     let newMonth = gameState.month + monthsPassed;
     let newYear = gameState.year;
     if (newMonth >= 12) {
@@ -306,7 +301,6 @@ export default function App() {
       newMonth = newMonth % 12;
     }
 
-    // New Totals for history
     const nextTotalValue = newTrusts.reduce((acc, t) => acc + t.properties.reduce((pAcc, p) => pAcc + p.value, 0), 0);
     const nextTotalDebt = newTrusts.reduce((acc, t) => acc + t.properties.reduce((pAcc, p) => pAcc + p.loan, 0), 0); 
     const nextCash = gameState.cash + accumulatedCash;
@@ -341,11 +335,8 @@ export default function App() {
   const timelineMaxYear = Math.max(10, gameState.year + 2); 
   const currentProgress = gameState.year + (gameState.month / 12);
   const progressPercentage = Math.min((currentProgress / timelineMaxYear) * 100, 100);
-
-  // Generate ticks for timeline (every year)
   const timelineTicks = Array.from({ length: timelineMaxYear + 1 }, (_, i) => i);
 
-  // Reusable Buttons
   const ChartButton = ({ compact = false }) => (
       <button 
          onClick={() => setShowHistory(!showHistory)} 

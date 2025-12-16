@@ -397,23 +397,33 @@
 
             const annualCashflow = useMemo(() => {
                 let total = 0;
+                const currentTotalMonths = gameState.year * 12 + gameState.month;
+                
                 gameState.trusts.forEach(trust => {
-                trust.properties.forEach(prop => {
-                    const monthlyInterest = calculateMonthlyInterest(prop.loan, prop.interestRate);
-                    let monthlyRent = 0;
-                    let monthlyExpenses = 0;
-                    if (prop.type.startsWith('RESIDENTIAL')) {
-                        monthlyRent = (prop.value * (prop.yieldRate / 100)) / 12;
-                        monthlyExpenses = (prop.value * 0.02) / 12; 
-                    } else {
-                        monthlyRent = (prop.value * (prop.yieldRate / 100)) / 12;
-                        monthlyExpenses = 0; 
-                    }
-                    total += (monthlyRent - monthlyInterest - monthlyExpenses);
-                });
+                    trust.properties.forEach(prop => {
+                        const monthlyInterest = calculateMonthlyInterest(prop.loan, prop.interestRate);
+                        let monthlyRent = 0;
+                        let monthlyExpenses = 0;
+
+                        if (prop.type.startsWith('RESIDENTIAL')) {
+                            // Rent grows 5% annually based on PURCHASE PRICE
+                            const yearsHeld = Math.max(0, (currentTotalMonths - prop.boughtAt) / 12);
+                            const initialAnnualRent = prop.originalPrice * (prop.yieldRate / 100);
+                            const currentAnnualRent = initialAnnualRent * Math.pow(1.05, yearsHeld);
+                            
+                            monthlyRent = currentAnnualRent / 12;
+                            // Expenses are 2% of CURRENT VALUE annually
+                            monthlyExpenses = (prop.value * 0.02) / 12; 
+                        } else {
+                            // Commercial: Net Yield based on CURRENT VALUE
+                            monthlyRent = (prop.value * (prop.yieldRate / 100)) / 12;
+                            monthlyExpenses = 0; 
+                        }
+                        total += (monthlyRent - monthlyInterest - monthlyExpenses);
+                    });
                 });
                 return total * 12; 
-            }, [gameState.trusts]);
+            }, [gameState.trusts, gameState.year, gameState.month]);
 
             const handleStart = (setupData) => { setGameState(prev => ({ ...prev, ...setupData, setupComplete: true })); };
             const handleOpenTrust = () => { if (gameState.cash < 3000) { alert("Insufficient cash to open a Trust ($3,000 required)."); return; } const newTrust = { id: Math.random().toString(36).substr(2, 9), name: `Trust ${gameState.trusts.length + 1}`, maxBorrowing: gameState.maxBorrowingPerTrust, properties: [] }; setGameState(prev => ({ ...prev, cash: prev.cash - 3000, trusts: [...prev.trusts, newTrust] })); };
@@ -427,14 +437,31 @@
 
             const advanceTime = () => {
                 const monthsPassed = 3; let accumulatedCash = 0;
+                const currentTotalMonths = gameState.year * 12 + gameState.month;
+                
                 const newTrusts = gameState.trusts.map(trust => {
                 const newProperties = trust.properties.map(prop => {
                     let periodRent = 0; let periodExpenses = 0;
-                    if (prop.type.startsWith('RESIDENTIAL')) { const annualRent = prop.value * (prop.yieldRate / 100); periodRent = (annualRent / 12) * monthsPassed; periodExpenses = (prop.value * 0.02 / 12) * monthsPassed; } 
-                    else { const annualRent = prop.value * (prop.yieldRate / 100); periodRent = (annualRent / 12) * monthsPassed; periodExpenses = 0; }
+                    
+                    if (prop.type.startsWith('RESIDENTIAL')) { 
+                        // Rent grows 5% annually based on PURCHASE PRICE
+                        const yearsHeld = Math.max(0, (currentTotalMonths - prop.boughtAt) / 12);
+                        const initialAnnualRent = prop.originalPrice * (prop.yieldRate / 100);
+                        const currentAnnualRent = initialAnnualRent * Math.pow(1.05, yearsHeld);
+
+                        periodRent = (currentAnnualRent / 12) * monthsPassed;
+                        periodExpenses = (prop.value * 0.02 / 12) * monthsPassed; 
+                    } 
+                    else { 
+                        const annualRent = prop.value * (prop.yieldRate / 100); 
+                        periodRent = (annualRent / 12) * monthsPassed; 
+                        periodExpenses = 0; 
+                    }
+                    
                     const annualInterest = prop.loan * (prop.interestRate / 100);
                     const periodInterest = (annualInterest / 12) * monthsPassed;
                     accumulatedCash += (periodRent - periodInterest - periodExpenses);
+                    
                     const growthFactor = 1 + (prop.growthRate / 100) * (monthsPassed / 12);
                     const newValue = prop.value * growthFactor;
                     return { ...prop, value: newValue };
