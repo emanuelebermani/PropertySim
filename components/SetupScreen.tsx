@@ -30,6 +30,51 @@ const AppLogo = ({ size = "large" }: { size?: "small" | "large" }) => {
   );
 };
 
+// Color mapping for Tailwind to detect classes
+const colorVariants: Record<string, { badge: string, border: string, range: string }> = {
+  blue: {
+    badge: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400 border-blue-100 dark:border-blue-800',
+    border: 'border-blue-100 dark:border-blue-800',
+    range: 'accent-blue-600'
+  },
+  green: {
+    badge: 'text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-400 border-green-100 dark:border-green-800',
+    border: 'border-green-100 dark:border-green-800',
+    range: 'accent-green-600'
+  },
+  purple: {
+    badge: 'text-purple-600 bg-purple-50 dark:bg-purple-900/30 dark:text-purple-400 border-purple-100 dark:border-purple-800',
+    border: 'border-purple-100 dark:border-purple-800',
+    range: 'accent-purple-600'
+  }
+};
+
+const SliderInput = ({ label, value, min, max, step, onChange, unit = "%", color = "blue" }: any) => {
+  const styles = colorVariants[color] || colorVariants.blue;
+
+  return (
+    <div className="mb-4">
+      <div className="flex justify-between items-center mb-1">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>
+        <div className={`text-sm font-bold px-2 py-0.5 rounded border min-w-[3rem] text-center ${styles.badge}`}>
+          {value}{unit}
+        </div>
+      </div>
+      <div className="flex items-center gap-4">
+         <input 
+          type="range" 
+          min={min} 
+          max={max} 
+          step={step} 
+          value={value} 
+          onChange={(e) => onChange(Number(e.target.value))}
+          className={`w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer ${styles.range}`}
+        />
+      </div>
+    </div>
+  )
+}
+
 const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, onToggleTheme }) => {
   const [salary, setSalary] = useState(150000);
   const [savingsRate, setSavingsRate] = useState(20);
@@ -52,31 +97,6 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onStart, darkMode, onToggleTh
     const num = parseFormattedNumber(value);
     if (!isNaN(num)) setter(num);
   };
-
-  // Internal SliderInput
-  const SliderInput = ({ label, value, min, max, step, onChange, unit = "%", color = "blue" }: any) => {
-    return (
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-1">
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>
-          <div className={`text-sm font-bold text-${color}-600 bg-${color}-50 dark:bg-${color}-900/30 dark:text-${color}-400 px-2 py-0.5 rounded border border-${color}-100 dark:border-${color}-800 min-w-[3rem] text-center`}>
-            {value}{unit}
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-           <input 
-            type="range" 
-            min={min} 
-            max={max} 
-            step={step} 
-            value={value} 
-            onChange={(e) => onChange(Number(e.target.value))}
-            className={`w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-${color}-600`}
-          />
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 p-4 relative transition-colors duration-300">
